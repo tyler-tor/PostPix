@@ -1,12 +1,14 @@
 # Postpix Code Walkthrough
 
 A guided tour of the Postpix codebase as it is **today on the `modernize` branch** (after
-Batch 1, items P2-P11). It is written for someone who knows Python and React basics but has
+Batch 1, items P2-P11, and Batch 2, items P0 and P12-P19: safe seeding, app factory,
+Python 3.12 / Flask 3 / SQLAlchemy 2, a clean migration baseline, Vite, React 19,
+React Router 7 and Redux Toolkit). It is written for someone who knows Python and React basics but has
 not looked at this project in a while. Every file, function and endpoint named here exists in
 the code; if you find one that does not, the code changed after this was written.
 
 Postpix started in 2022 as a three-person team project (Tyler, Alan De Leon, Theo Fandrich)
-and is now maintained by Tyler. See `CHANGES.md` for what Batch 1 changed and
+and is now maintained by Tyler. See `CHANGES.md` for what Batches 1 and 2 changed and
 `MODERNIZATION_PLAN.md` for what is planned.
 
 ## Table of contents
@@ -20,7 +22,7 @@ and is now maintained by Tyler. See `CHANGES.md` for what Batch 1 changed and
 7. [Frontend tour](#7-frontend-tour)
 8. [Three end-to-end traces](#8-three-end-to-end-traces)
 9. [Where do I look when...](#9-where-do-i-look-when)
-10. [What changed in Batch 1 and what is coming](#10-what-changed-in-batch-1-and-what-is-coming)
+10. [What changed in Batches 1 and 2 and what is coming](#10-what-changed-in-batches-1-and-2-and-what-is-coming)
 11. [Interview prep](#11-interview-prep)
 12. [Glossary](#12-glossary)
 
@@ -43,11 +45,11 @@ Postpix is a photo-sharing web app. You sign up (optionally with a profile pictu
 
 | Layer | Technology | Where |
 |---|---|---|
-| Frontend | React 17, React Router v5, Redux 4 + redux-thunk, Create React App (react-scripts 4) | `react-app/` |
-| Backend | Flask 2.0, Flask-SQLAlchemy 2.5 (SQLAlchemy 1.4), Flask-Migrate (Alembic), Flask-Login, Flask-WTF | `app/` |
-| Database | SQLite locally (`app/dev.db`), Postgres in production | `migrations/` |
+| Frontend | React 19, React Router 7, Redux Toolkit 2 (react-redux 9), Vite 8, Node 22 | `react-app/` |
+| Backend | Python 3.12, Flask 3.1, Flask-SQLAlchemy 3.1 (SQLAlchemy 2.1), Flask-Migrate 4 (Alembic), Flask-Login, Flask-WTF | `app/` |
+| Database | SQLite locally (`instance/dev.db`), Postgres (psycopg 3) in production | `migrations/` |
 | Images | Amazon S3 via `boto3`, validated with Pillow | `app/s3_helpers.py` |
-| Deploy (old) | Docker image on Heroku via GitHub Actions (Heroku is dead) | `Dockerfile`, `.github/workflows/main.yml` |
+| Deploy | None right now: the Heroku workflow was deleted (P0); Docker + AWS come in Batch 4 (P33-P41). The old `Dockerfile` still exists | `Dockerfile` |
 
 **How a request flows**
 
@@ -63,7 +65,7 @@ flowchart LR
     BP --> S3H[s3_helpers.py]
     S3H --> S3[(Amazon S3)]
     BP -->|JSON| T
-    T -->|action| RD[Reducer updates store]
+    T -->|action| RD[Slice reducer updates store]
     RD -->|useSelector| R
 ```
 
@@ -71,7 +73,7 @@ In words: a component calls `dispatch(someThunk())`. The thunk calls `apiFetch('
 Flask routes the URL to a function in one of the blueprints under `app/api/`. That function
 checks login (`@login_required`), validates input with a WTForm, reads/writes models through
 SQLAlchemy, and returns a Python `dict`, which Flask turns into JSON. The thunk then dispatches
-a plain action, a reducer stores the data, and every component that `useSelector`s that slice
+a slice action (Redux Toolkit), the slice's reducer stores the data, and every component that `useSelector`s that slice
 re-renders.
 
 ---
@@ -84,19 +86,21 @@ Skips `node_modules/`, `react-app/build/`, lockfiles and `__pycache__/`.
 Instagram-Group-Project/
 ├── .env.example              Template for your local .env (the only env template; copy it)
 ├── .envexample               Git-ignored leftover duplicate (P2 stopped tracking it); safe to delete
-├── .github/workflows/main.yml Old Heroku deploy: build, migrate, seed undo, seed all (wipes data!)
-├── CHANGES.md                What Batch 1 changed, item by item, and how to verify it
+├── .python-version           "3.12" (read by pyenv / uv)
+├── CHANGES.md                What Batches 1 and 2 changed, item by item, and how to verify it
 ├── MODERNIZATION_PLAN.md     The 48-item plan (P1-P48)
-├── Dockerfile                Old Heroku image (python:3.9, gunicorn app:app)
-├── Pipfile                   Old pipenv file, out of date; requirements.txt is the real list
-├── requirements.txt          Pinned backend packages (Flask 2.0.1, SQLAlchemy 1.4.19, Pillow...)
-├── README.md                 Original team README (rewrite planned in P46)
+├── Dockerfile                Old Heroku-style image, minimally updated (python:3.12-slim, gunicorn wsgi:app); replaced in P33
+├── requirements.in           Direct backend dependencies (edit this one)
+├── requirements.txt          Fully pinned list generated from requirements.in (uv pip compile)
+├── requirements-dev.in/.txt  Dev tools: pytest, ruff, moto, pip-audit
+├── wsgi.py                   `app = create_app()` for gunicorn (`gunicorn wsgi:app`)
+├── README.md                 Original team README (install steps updated; rewrite planned in P46)
+├── instance/                 Git-ignored; holds the local SQLite file dev.db
 ├── app/                      Flask backend
-│   ├── __init__.py           Creates the Flask app: config, login manager, blueprints, CSRF, React serving
-│   ├── config.py             Config class: SECRET_KEY, DATABASE_URL, cookies, 10 MB upload cap
+│   ├── __init__.py           create_app(): config, extensions, blueprints, CSRF cookie, /api/health, React serving
+│   ├── config.py             Config / DevConfig / TestConfig / ProdConfig + get_config()
 │   ├── errors.py             JSON error handlers ({"errors": [...]}) for every /api error
 │   ├── s3_helpers.py         Image validation (Pillow) + upload to S3
-│   ├── dev.db                Local SQLite database (git-ignored, created by flask db upgrade)
 │   ├── api/                  Blueprints = groups of routes
 │   │   ├── auth_routes.py    /api/auth: restore session, login, logout, signup
 │   │   ├── user_routes.py    /api/users: users, profiles, follow/unfollow, liked posts
@@ -109,42 +113,44 @@ Instagram-Group-Project/
 │   │   ├── create_post.py, update_post.py, create_comment.py, update_comment.py
 │   │   └── filters.py        strip_whitespace filter used by text fields
 │   ├── models/               SQLAlchemy models (tables)
-│   │   ├── db.py             The db object + production schema helper add_prefix_for_prod
+│   │   ├── db.py             The db object (with constraint naming convention), TimestampMixin, iso()
 │   │   ├── user.py           User model + the follows association table
 │   │   ├── posts.py          Post
 │   │   ├── comments.py       Comment
-│   │   ├── postLike.py       PostLike (one row per like)
-│   │   └── follows.py        Entirely commented out (old Follow model); not imported
-│   └── seeds/                `flask seed all` / `flask seed undo` demo data
-│       ├── __init__.py       Defines the seed CLI group
-│       ├── users.py          15 users (+ who follows whom)
-│       ├── posts.py          50 posts
-│       ├── comments.py       ~80 comments
-│       ├── postLikes.py      17 likes + recount_post_likes()
-│       └── follows.py        Dead code (imports a name that does not exist); not imported
-├── migrations/               Alembic (Flask-Migrate) schema history
-│   ├── env.py                Creates/uses the Postgres SCHEMA in production
-│   └── versions/             5 migration files (see section 5)
-└── react-app/                React frontend (Create React App)
-    ├── package.json          Deps + "proxy": "http://localhost:5000"
-    ├── public/index.html     HTML shell, <title>Postpix</title>
+│   │   └── postLike.py       PostLike (one row per like)
+│   └── seeds/                `flask seed all [--reset]` / `flask seed undo` demo data
+│       ├── __init__.py       Seed CLI group: seeds only an empty DB; reset/undo refuse in production
+│       ├── users.py          15 users (+ who follows whom); returns {seed number: User}
+│       ├── posts.py          50 posts; returns {seed number: Post}
+│       ├── comments.py       80 comments
+│       └── postLikes.py      17 likes + recount_post_likes()
+├── migrations/               Alembic (Flask-Migrate)
+│   ├── env.py                Standard Flask-Migrate env (no schema hacks since P15)
+│   └── versions/0001_baseline_schema.py  The one baseline migration (see section 5.5)
+└── react-app/                React frontend (Vite)
+    ├── package.json          Deps + scripts: dev / start (vite), build (vite build), preview
+    ├── vite.config.js        React plugin, dev server :3000, proxy /api -> :5000, build -> build/
+    ├── index.html            HTML shell (Vite entry), <title>Postpix</title>
+    ├── public/favicon.ico    Copied as-is into the build
     └── src/
-        ├── index.js          Entry: Redux Provider + ModalProvider + <App/>
-        ├── App.js            Restores session, then defines routes
+        ├── index.jsx         Entry: createRoot + Redux Provider + ModalProvider + <App/>
+        ├── App.jsx           Restores session, then defines routes (React Router 7)
         ├── index.css         Global styles + Postpix brand CSS variables (--pp-accent)
         ├── utils/apiFetch.js fetch wrapper that adds the CSRF header
-        ├── context/Modal.js  ModalProvider + <Modal> (portal-based modal)
-        ├── store/            Redux: index.js combines 14 slice reducers (see section 7)
-        └── components/
+        ├── utils/formatDate.js ISO timestamp -> "Nov 23, 2026"
+        ├── context/Modal.jsx ModalProvider + <Modal> (portal-based modal)
+        ├── store/            Redux Toolkit: index.js (configureStore) + 14 slices + helpers.js
+        └── components/       (files with JSX are .jsx; plain re-export index.js files stay .js)
             ├── LoginPage/    Login card, Demo Login, sign-up modal, profile-picture picker
             ├── NavBar/       Nav bar, search, create-post modal, image upload, profile menu
             ├── HomeFeed/     Home page: following avatars, feed, suggestions sidebar
             ├── ExplorePage/  Grid of all posts
             ├── UserProfile/  Profile header (follow button, counts) + post grid
+            ├── NotFound/     "Page not found" (the * route and non-numeric profile ids)
             ├── reUsedComponents/ PostGrid, SinglePostModal, comments, edit/delete modals,
             │                 follower/following/liked-by lists, ProtectedRoute
-            ├── Brand/        Wordmark.js (the "postpix" text logo) + Brand.css
-            ├── User.js, UsersList.js  Early dev pages (UsersList is routed at /users)
+            ├── Brand/        Wordmark.jsx (the "postpix" text logo) + Brand.css
+            ├── User.jsx, UsersList.jsx  Early dev pages (UsersList is routed at /users)
             └── Temp*/, CreatePost/, CreateComment/  Unused dev test components
 ```
 
@@ -152,8 +158,8 @@ Instagram-Group-Project/
 
 ## 3. How to run it locally
 
-You need two terminals: one for Flask (port 5000) and one for the React dev server
-(port 3000). The React dev server forwards `/api/...` calls to Flask.
+You need **Python 3.12** and **Node 22.12+** (Node 22 LTS), and two terminals: one for Flask
+(port 5000) and one for the Vite dev server (port 3000). Vite forwards `/api/...` calls to Flask.
 
 1. **Create your `.env`** in the project root:
    ```bash
@@ -163,51 +169,64 @@ You need two terminals: one for Flask (port 5000) and one for the React dev serv
    ```bash
    python3 -c "import secrets; print(secrets.token_hex(32))"
    ```
-   If you leave `SECRET_KEY` empty in development, `app/config.py` makes a random key **each
+   If you leave `SECRET_KEY` empty in development, `DevConfig` makes a random key **each
    time Flask starts**, so every restart logs you out and invalidates CSRF tokens. Keep
-   `FLASK_ENV=development` and `DATABASE_URL=sqlite:///dev.db` (this creates `app/dev.db`).
+   `FLASK_ENV=development` (picks `DevConfig`), `FLASK_DEBUG=1` (Flask 3 no longer turns on
+   the debugger from `FLASK_ENV`) and `DATABASE_URL=sqlite:///dev.db`, which Flask-SQLAlchemy 3
+   puts in **`instance/dev.db`** (not `app/dev.db` any more).
 3. **S3 (optional).** If you are not testing uploads, set `S3_BUCKET=` to empty. Then uploads
    fail cleanly with "S3 is not configured" instead of trying a fake bucket. Everything else
-   works without S3 (seed images are hosted elsewhere). `REACT_APP_BASE_URL` is not used by the code.
-4. **Create a virtualenv and install backend packages.** The pins date from 2021-2022 and the
-   Dockerfile uses Python 3.9, so Python 3.9 (3.10/3.11 likely fine) is the safe choice until
-   P13 upgrades everything:
+   works without S3 (seed images are hosted elsewhere). The frontend needs no env vars.
+4. **Create a virtualenv and install backend packages** (pinned in `requirements.txt`,
+   generated from `requirements.in`):
    ```bash
-   python3.9 -m venv .venv
+   python3.12 -m venv .venv
    source .venv/bin/activate
-   pip install -r requirements.txt
+   pip install -r requirements.txt            # add -r requirements-dev.txt for pytest/ruff/pip-audit
    ```
-5. **Create the tables** (Flask finds the app through `FLASK_APP=app` in `.env`, loaded by
+   To change dependencies: edit `requirements.in`, then
+   `uv pip compile requirements.in -o requirements.txt --python-version 3.12` (or `pip-compile`).
+5. **Create the tables** (Flask finds `create_app()` through `FLASK_APP=app` in `.env`, loaded by
    python-dotenv):
    ```bash
    flask db upgrade
    ```
+   If you have a database from before Batch 2, delete it first (`app/dev.db` / `instance/dev.db`):
+   the old migration history was replaced by one baseline (P15) and cannot be upgraded.
 6. **Load demo data:**
    ```bash
    flask seed all
    ```
-   Running it twice fails on unique usernames/emails. To start over: `flask seed undo` then
-   `flask seed all` (or delete `app/dev.db` and repeat step 5).
+   Safe to run any time: it only seeds an **empty** database and otherwise prints
+   "Database already has data. Skipping seed.". To start over locally:
+   `flask seed all --reset` (deletes everything, then seeds). `flask seed undo` deletes
+   everything. Both refuse to run when `FLASK_ENV=production`.
 7. **Start Flask:**
    ```bash
-   flask run        # http://localhost:5000
+   flask run        # http://localhost:5000  (curl localhost:5000/api/health -> {"status":"ok"})
    ```
 8. **Start React** in a second terminal:
    ```bash
    cd react-app
    npm install
-   npm start        # http://localhost:3000
+   npm run dev      # http://localhost:3000   (npm start does the same)
    ```
-   On Node 17 or newer, react-scripts 4 needs `NODE_OPTIONS=--openssl-legacy-provider npm start`.
-9. **How the proxy works.** `react-app/package.json` has `"proxy": "http://localhost:5000"`.
-   The browser only talks to `localhost:3000`; the CRA dev server forwards `/api/...` to Flask.
-   Because the browser sees one origin, cookies (session + CSRF) just work and no CORS is needed.
+   No `NODE_OPTIONS=--openssl-legacy-provider` any more (that was for Create React App).
+9. **How the proxy works.** `react-app/vite.config.js` has `server.proxy: {"/api":
+   "http://localhost:5000"}`. The browser only talks to `localhost:3000`; Vite forwards
+   `/api/...` to Flask. Because the browser sees one origin, cookies (session + CSRF) just work
+   and no CORS is needed.
 10. **Log in.** Click **Demo Login** (it calls `login("demo@aa.io", "password")` in
-    `LoginForm.js`). Every seeded user has password `password`, for example
+    `LoginForm.jsx`). Every seeded user has password `password`, for example
     `marnie@aa.io`, `bobbie@aa.io`, `theo@aa.io`, `awd@aa.io` (see `app/seeds/users.py`).
 
-**Production-style run:** `npm run build` inside `react-app/`, then only `flask run`; Flask serves
-`react-app/build/` itself (see section 5). Deep links like `/explore` 404 on refresh in this mode.
+**Production-style run:** `npm run build` inside `react-app/` (output in `react-app/build/`),
+then only Flask: `flask run`, or like production `gunicorn wsgi:app`. Flask serves the build
+itself, and since P18 refreshing a deep link like `/explore` works (see section 5.1).
+
+**Deploy rule (P0):** a deploy runs `flask db upgrade && flask seed all` (safe every time).
+Never run `--reset`/`undo` against production, never `docker compose down -v` there (it deletes
+the database volume), and back up before every production migration.
 
 ---
 
@@ -262,8 +281,8 @@ erDiagram
         datetime updated_at
     }
     follows {
-        int follower_id FK "the person following"
-        int followed_id FK "the person being followed"
+        int follower_id FK "the person following (NOT NULL)"
+        int followed_id FK "the person being followed (NOT NULL)"
     }
 ```
 
@@ -273,20 +292,30 @@ erDiagram
   and timestamps. Since P6 a unique constraint `uq_post_likes_user_post` on
   `(user_id, post_id)` makes double-likes impossible.
 - **Users follow users** through `follows` (self-referential many-to-many: both columns point
-  at `users.id`). It has a unique constraint on `(follower_id, followed_id)` but no primary key.
+  at `users.id`). It has a unique constraint `uq_follows_follower_followed` on
+  `(follower_id, followed_id)` but no primary key.
+
+**Timestamps.** Every model gets `created_at` / `updated_at` from `TimestampMixin`
+(`app/models/db.py`): `DateTime(timezone=True)`, `NOT NULL`, `DEFAULT now()` in the table
+(database clock) and `onupdate=func.now()`. The API returns them as ISO-8601 strings with a
+UTC offset (`"2026-11-23T18:04:05+00:00"`) via `iso()`; the frontend formats them with
+`utils/formatDate.js`.
 
 **Per model file**
 
-- `app/models/db.py` - creates `db = SQLAlchemy()`. Also reads `FLASK_ENV` and `SCHEMA`;
-  `add_prefix_for_prod('users.id')` returns `"<SCHEMA>.users.id"` in production so foreign keys
-  point into the Postgres schema (a leftover of App Academy's Heroku setup; removed in P15).
+- `app/models/db.py` - creates `db = SQLAlchemy(metadata=MetaData(naming_convention=...))`.
+  The naming convention gives every constraint a predictable name (`pk_users`,
+  `fk_posts_user_id_users`, `uq_users_email`, ...) so later migrations can refer to it.
+  Also defines `TimestampMixin` and `iso()`. (The old Heroku `SCHEMA` /
+  `add_prefix_for_prod` helper was removed in P15.)
 - `app/models/user.py` - the `follows` table and the `User` model.
   - `password` is a property: setting `user.password = 'x'` stores a Werkzeug hash in
     `hashed_password`; `check_password()` verifies it.
   - `UserMixin` from Flask-Login gives `is_authenticated`, `get_id()` and so on.
   - `followers` = users who follow me (`follows.followed_id == my id`). Its backref
-    **`follows`** = users **I** follow. Both are `lazy='dynamic'` (query objects). The naming is
-    confusing: read `user.follows` as "the people this user follows".
+    **`follows`** = users **I** follow. Both are plain Python lists (`lazy='select'`; they were
+    `lazy='dynamic'` query objects before P14). The naming is confusing: read `user.follows` as
+    "the people this user follows".
   - `to_public()` - safe view: id, username, names, picture, followers, following, liked
     post IDs, timestamps. **No email.** `to_dict` is an alias of `to_public`.
   - `to_self()` - `to_public()` plus `email`; only used for "this is me" responses.
@@ -296,7 +325,6 @@ erDiagram
   camelCase keys (`userId`, `imgUrl`, `createdAt`).
 - `app/models/comments.py` - `Comment`, with `users` (author) and `posts`.
 - `app/models/postLike.py` - `PostLike` plus the unique constraint.
-- `app/models/follows.py` - fully commented out; ignore it.
 - `app/models/__init__.py` - re-exports `db, User, Post, Comment, PostLike`.
 
 ---
@@ -305,49 +333,60 @@ erDiagram
 
 ### 5.1 `app/__init__.py`, step by step
 
-There is no app factory yet (that is P12): importing the `app` package builds one global
-`app` object. `flask run` and gunicorn (`gunicorn app:app`) both import it.
+Since P12 there is an **app factory**: `create_app(config_name=None)` builds and returns a new,
+fully configured app. Nothing is built at import time. `flask ...` commands find
+`create_app` automatically (`FLASK_APP=app`), gunicorn uses `wsgi:app` (`wsgi.py` calls
+`create_app()`), and a test can call `create_app('testing')` for a fresh app.
 
-1. **Imports models and blueprints.** `from .models import db, User` and one import per
-   blueprint file in `app/api/`, plus `seed_commands`, `Config`, `IS_PRODUCTION` and
-   `register_error_handlers`.
-2. **Creates the app:** `Flask(__name__, static_folder='../react-app/build', static_url_path='/')`.
-   This tells Flask that the built React files are static files served from the site root.
-3. **Login manager.** `login = LoginManager(app)`.
+1. **Module level: extensions are created once, unattached.** `login = LoginManager()`,
+   `migrate = Migrate()`, `csrf = CSRFProtect()` (plus `db` from `app/models/db.py`).
    - `@login.user_loader load_user(id)` - on every request with a session cookie, Flask-Login
-     calls this with the stored user id and gets the `User` back. That is what fills
-     `current_user`.
+     calls this with the stored user id; it returns `db.session.get(User, int(id))`. That is what
+     fills `current_user`.
    - `@login.unauthorized_handler unauthorized()` - when `@login_required` fails, return
-     `{"errors": ["Unauthorized"]}, 401` (JSON, not a redirect). `login.login_view` is still set
-     but the handler takes precedence.
-4. **Seed CLI.** `app.cli.add_command(seed_commands)` adds `flask seed all|undo`.
-5. **Config.** `app.config.from_object(Config)` (from `app/config.py`):
-   - `SECRET_KEY` - required in production (startup fails without it), random per process in dev.
-   - `SQLALCHEMY_DATABASE_URI` from `DATABASE_URL` (default `sqlite:///dev.db`; rewrites
-     `postgres://` to `postgresql://`).
-   - `SQLALCHEMY_ECHO` from the env, default off.
-   - `MAX_CONTENT_LENGTH = 10 MB` - bigger request bodies get 413.
-   - Session and remember-me cookies: `HttpOnly`, `SameSite=Lax`, `Secure` only in production.
-6. **Blueprints.** Six `register_blueprint` calls mount the route files under
-   `/api/users`, `/api/auth`, `/api/posts`, `/api/me`, `/api/comments`, `/api/img`.
-7. **Extensions.** `db.init_app(app)` connects SQLAlchemy; `Migrate(app, db)` adds `flask db ...`.
-8. **CSRF.** `csrf = CSRFProtect(app)` checks a CSRF token on **every** POST/PUT/PATCH/DELETE.
-   (flask-cors was removed in P9; same-origin needs no CORS.)
-9. **Error handlers.** `register_error_handlers(app)` from `app/errors.py`:
+     `{"errors": ["Unauthorized"]}, 401` (JSON, not a redirect).
+2. **Creates the app:** `Flask(__name__, static_folder=None)` (Flask's own static route is off;
+   `react_root` serves the React build, step 9) and sets `FRONTEND_DIST` (default
+   `react-app/build`).
+3. **Config:** `app.config.from_object(get_config(config_name))` (from `app/config.py`). The
+   name is the argument or `FLASK_ENV` (`development` default, `testing`, `production`):
+   - `Config` (shared): `SQLALCHEMY_TRACK_MODIFICATIONS = False`, `MAX_CONTENT_LENGTH = 10 MB`
+     (bigger bodies get 413), session/remember cookies `HttpOnly` + `SameSite=Lax`,
+     `SQLALCHEMY_ECHO` from the env (default off). Env vars are read in `__init__`, i.e. when the
+     app is created, not on import.
+   - `DevConfig`: `DATABASE_URL` or `sqlite:///dev.db` (-> `instance/dev.db`), random
+     `SECRET_KEY` if none is set.
+   - `TestConfig`: `TESTING = True`, `WTF_CSRF_ENABLED = False`, in-memory SQLite (or
+     `TEST_DATABASE_URL`), fixed key.
+   - `ProdConfig`: `IS_PRODUCTION = True`, `Secure` cookies, and **raises at startup** if
+     `SECRET_KEY` or `DATABASE_URL` is missing.
+   - Postgres URLs (`postgres://`, `postgresql://`) are rewritten to `postgresql+psycopg://`
+     (psycopg 3 driver).
+4. **Extensions attached:** `db.init_app(app)`, `migrate.init_app(app, db,
+   render_as_batch=True)` (adds `flask db ...`; batch mode lets future migrations alter tables
+   on SQLite), `login.init_app(app)`, `csrf.init_app(app)` (checks a CSRF token on **every**
+   POST/PUT/PATCH/DELETE; flask-cors was removed in P9, same-origin needs no CORS).
+5. **Blueprints.** Imported inside the factory and mounted under `/api/users`, `/api/auth`,
+   `/api/posts`, `/api/me`, `/api/comments`, `/api/img`.
+6. **Seed CLI.** `app.cli.add_command(seed_commands)` adds `flask seed all [--reset]|undo`.
+7. **Error handlers.** `register_error_handlers(app)` from `app/errors.py`:
    - `handle_http_exception` - for `/api/...` paths turns any `HTTPException` (404, 405, 413...)
      into `{"errors": [description]}` with the right status. Non-API paths keep Flask's default.
    - `handle_unexpected_exception` - logs the traceback, returns a generic
      `{"errors": ["Internal server error"]}, 500`. In debug/testing it re-raises so you see the traceback.
-   - Plus `handle_csrf_error` in `__init__.py`: `{"errors": ["CSRF check failed: ..."]}, 400`.
-10. **`inject_csrf_token` (after every response)** sets the `csrf_token` cookie to
-    `generate_csrf()`, `SameSite=Lax`, `httponly=False` so JavaScript can read it.
-11. **Serving React.** `react_root(path)` is mapped to `/` and `/<path:path>`:
-    `api/...` paths get a JSON 404, `favicon.ico` is sent as a file, and anything else returns
-    `index.html` so React Router can take over. **Catch:** because `static_url_path='/'`,
-    Flask's own static route also matches `/<path:filename>` and wins, so a refresh on
-    `/explore` looks for a file called `explore`, does not find it, and returns 404 (known
-    issue, noted in `CHANGES.md` P11; fix planned in P31/P33). Only `/` reliably reaches
-    `react_root`. This only matters when Flask serves the build; `npm start` is unaffected.
+   - Plus `handle_csrf_error`: `{"errors": ["CSRF check failed: ..."]}, 400`.
+8. **`inject_csrf_token` (after every response)** sets the `csrf_token` cookie to
+   `generate_csrf()`, `SameSite=Lax`, `httponly=False` so JavaScript can read it, `Secure` when
+   `IS_PRODUCTION`. **`GET /api/health`** returns `{"status": "ok"}` (no login, no database) for
+   Docker / load-balancer health checks.
+9. **Serving React.** `react_root(path)` is mapped to `/` and `/<path:path>`:
+   - `api/...` paths that matched no route -> JSON 404;
+   - a real file in the build (`/assets/index-abc123.js`, `/favicon.ico`) -> sent with
+     `send_from_directory` (which refuses `..` tricks);
+   - a missing path that looks like a file (a `.` in the last segment) -> JSON 404;
+   - anything else (`/`, `/explore`, `/42`, `/no-such-page`) -> `index.html`, and React Router
+     decides what to show, including its own 404 page. This is why refreshing a deep link works
+     since P18 (before, Flask's static route answered first with a 404).
 
 ### 5.2 Forms (`app/forms/`)
 
@@ -372,6 +411,14 @@ which turns `form.errors` into `["field : message", ...]`.
 
 "Login" = has `@login_required` (logged-out callers get 401 JSON). "Owner" = the route checks
 the current user owns the row (403 if not). All write methods also need the CSRF header.
+
+**Query style (since P14, SQLAlchemy 2.0):** `db.session.get(Post, id)`,
+`db.get_or_404(Post, id, description="Post not found")` (JSON 404 via `errors.py`),
+`db.session.scalars(select(Post).where(...)).all()`, `db.session.scalar(select(User).where(...))`
+and `db.session.execute(update(Post).where(...).values(...))`. There is no `Model.query` left.
+All `createdAt` / `updatedAt` values are ISO-8601 strings.
+
+**`GET /api/health`** (in `app/__init__.py`): `{"status": "ok"}`, no login.
 
 **`app/api/auth_routes.py` (`/api/auth`)**
 
@@ -402,7 +449,7 @@ the current user owns the row (403 if not). All write methods also need the CSRF
 
 | Method | Path | Login | Owner | Handler | Models | Response |
 |---|---|---|---|---|---|---|
-| GET | `/api/posts/` | yes | - | `posts` | Post, User | `{"Posts": [post + users{username, profilePicture, userId}]}`, newest first |
+| GET | `/api/posts/` | yes | - | `posts` | Post, User | `{"Posts": [post + users{username, profilePicture, userId}]}`, newest first (`created_at DESC, id DESC`) |
 | GET | `/api/posts/<id>` | yes | - | `get_post_by_id` | Post, User | post + `users`; 404 |
 | POST | `/api/posts/` | yes | - | `create_post` | Post | the new post + `users`; 400 |
 | PUT | `/api/posts/<id>` | yes | yes | `update_post` | Post, User | post + `users`; 404 / 403 / 400 |
@@ -436,7 +483,7 @@ How the home feed query works (P10): a subquery
 so authors load in one extra query instead of one per post.
 
 How likes stay correct (P6): `like_post` refuses a duplicate (409), increments in SQL
-(`likes = coalesce(likes, 0) + 1`) so concurrent likes do not overwrite each other, and catches
+(`update(Post).values(likes=func.coalesce(Post.likes, 0) + 1)`) so concurrent likes do not overwrite each other, and catches
 `IntegrityError` from the unique constraint as a 409 too. `unlike_post` decrements in SQL (never
 below 0) and `db.session.refresh(post)` so the response has the new count.
 
@@ -461,43 +508,39 @@ Used by `upload_image` (`/api/img/upload`) and by `sign_up` (profile picture).
 
 ### 5.5 Seeds and migrations
 
-**Seeds (`app/seeds/`)** fill the database with demo data. `flask seed all` runs, in order,
-`seed_users()` (15 users, all password `password`, and the follow graph set via
-`user.followers = [...]`), `seed_posts()` (50 posts), `seed_comments()`, `seed_post_likes()`
-(17 likes, then `recount_post_likes()` sets every `posts.likes` from real rows). Seed profile
-pictures point at an S3 bucket owned by someone else (`capstone-strava-clone-aktiv`); P37 plans
-to copy them.
+**Seeds (`app/seeds/`)** fill the database with demo data. Since P0 the rules are:
 
-`flask seed undo` runs `undo_users()` (deletes users **and** follows), `undo_posts()`,
-`undo_comments()`, `undo_post_likes()` with raw `DELETE FROM ...` SQL.
+| Command | What it does | Production |
+|---|---|---|
+| `flask seed all` | Seeds **only if there are no users**; otherwise prints "Database already has data. Skipping seed." and exits OK | allowed (safe on every deploy) |
+| `flask seed all --reset` | Deletes all data child-to-parent (post_likes, comments, follows, posts, users), then seeds | **refuses** (`click.ClickException`, exit 1) |
+| `flask seed undo` | Deletes all data the same way | **refuses** |
 
-In production (`FLASK_ENV=production`), `flask seed all` **first runs
-`TRUNCATE ... RESTART IDENTITY CASCADE`** on users, posts, comments and post_likes.
+Seeding runs `seed_users()` (15 users, all password `password`, follow graph via
+`user.followers = [...]`; returns `{seed number: User}`), `seed_posts(users)` (50 posts; returns
+`{seed number: Post}`), `seed_comments(users, posts)` (80) and `seed_post_likes(users, posts)`
+(17 likes, then `recount_post_likes()` sets every `posts.likes` from the real rows with an ORM
+`update()` + correlated `count()` subquery). The files refer to `users[4].id` / `posts[12].id`
+(the seed numbers in the `#1`..`#15` comments and `post1`..`post50`), never hard-coded database
+ids, so seeding works whatever ids the database hands out. Deletes use SQLAlchemy `delete()`
+statements; there is no raw SQL and no `TRUNCATE`. Seed profile pictures point at an S3 bucket
+owned by someone else (`capstone-strava-clone-aktiv`); P37 plans to copy them.
 
-> **Data-loss warning.** `.github/workflows/main.yml` runs on every push to `main`:
-> build React, push a Docker image to Heroku, `flask db upgrade`, then **`flask seed undo`** and
-> **`flask seed all`**. So every deploy deleted every user, post, comment and like (real
-> sign-ups included) and replaced them with demo data. Heroku is gone so this no longer runs
-> anywhere real, but do not point it at a live database. P39 replaces this workflow and P41
-> adds a safe "reset only the demo account" command.
+> **Deploy rule.** Deploys run `flask db upgrade && flask seed all`. Reset/undo only locally.
+> Never `docker compose down -v` on the server (deletes the Postgres volume). Back up
+> (`pg_dump`) before every production migration. The old Heroku workflow that ran
+> `seed undo` + `seed all` on every push to `main` (wiping all data) was **deleted in P0**.
 
-**Migrations (`migrations/versions/`)** are the schema history, applied in order by
-`flask db upgrade`:
-
-| Revision | What it does |
-|---|---|
-| `bd907f496434` (2022-10-24) | Initial tables: users, followers, posts, comments, post_likes |
-| `8e380edbf296` (2022-10-25) | Creates `follows`, drops the old `followers` table |
-| `356ea97f15e1` (2022-10-27) | Adds `users.profile_picture` |
-| `e66be29cbd54` (2022-11-05) | Empty (no-op) |
-| `a1f3c9d2e7b4` (2026-11-23, P6) | Removes duplicate likes, adds `uq_post_likes_user_post`, recounts `posts.likes` |
-
-The older files contain `ALTER TABLE ... SET SCHEMA` lines for production, and
-`migrations/env.py` creates the schema and sets `search_path` in production. P15 plans to reset
-this chain into one clean initial migration.
+**Migrations (`migrations/versions/`)**: since P15 there is **one baseline**,
+`0001_baseline_schema.py` (revision `0001_baseline`), generated from the models. It creates
+users, follows, posts, comments and post_likes with named constraints, `DEFAULT now()`
+timestamps, and the Batch 1 P6 rule `uq_post_likes_user_post` (one like per user per post).
+The four App Academy migrations, the Heroku `SCHEMA` / `search_path` code in `env.py` and the
+P6 data migration are gone (there was no production data to keep).
 
 To change the schema: edit a model, run `flask db migrate -m "message"`, **read** the generated
-file, then `flask db upgrade`.
+file (it sits on top of `0001_baseline`), then `flask db upgrade`. `flask db check` tells you if
+models and migrations disagree. Never edit the baseline once a real database uses it.
 
 ---
 
@@ -518,9 +561,9 @@ cannot put the right value in the header. That is the protection. Missing or wro
 
 ### 6.2 Restore (page load)
 
-`App.js` runs `dispatch(authenticate())` once on mount and renders nothing until it finishes.
+`App.jsx` runs `dispatch(authenticate())` once on mount and renders nothing until it finishes.
 `authenticate` (in `store/session.js`) calls `GET /api/auth/`. If the session cookie is valid,
-the backend returns `current_user.to_self()` plus `Posts`, and `SET_USER` stores it in
+the backend returns `current_user.to_self()` plus `Posts`, and the `session/setUser` action stores it in
 `state.session.user`. If not, the backend returns 200 with `{"errors": [...]}` and the thunk
 simply does not set a user, so the login page shows. This GET response also sets the first
 `csrf_token` cookie.
@@ -530,7 +573,7 @@ simply does not set a user, so the login page shows. This GET response also sets
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant LF as LoginForm.js
+    participant LF as LoginForm.jsx
     participant S as store/session.js
     participant AF as apiFetch
     participant FL as Flask (CSRFProtect)
@@ -546,8 +589,8 @@ sequenceDiagram
     AR->>DB: LoginForm validators: user_exists, password_matches
     AR->>AR: login_user(user) writes user id into session
     AR-->>S: 200 user.to_self() + Set-Cookie session, csrf_token
-    S->>S: dispatch SET_USER
-    LF-->>U: user in store, Redirect to "/" shows HomeFeed
+    S->>S: dispatch setUser (session slice)
+    LF-->>U: user in store, Navigate to "/" shows HomeFeed
 ```
 
 On a validation error the route returns 400 `{"errors": ["email : Email provided not found."]}`
@@ -555,7 +598,7 @@ and `LoginForm` shows the messages.
 
 ### 6.4 Signup (multipart, optional image)
 
-`SignUpForm.js` checks the two passwords match, then calls
+`SignUpForm.jsx` checks the two passwords match, then calls
 `signUp(username, email, password, first_name, last_name, image)`. The thunk builds a
 `FormData` (all fields + optional `image` file from `ProPicImageUpload`) and posts it to
 `/api/auth/signup` with `apiFetch` (no `Content-Type` header, so the browser sets the multipart
@@ -566,7 +609,7 @@ returns `to_self()`. On success the form navigates to `/explore`. Why one reques
 
 ### 6.5 Logout
 
-`ProfileDropDownMenu.js` (and the unused `LogoutButton.js`) dispatch `logout()`, which sends
+`ProfileDropDownMenu.jsx` (and the unused `LogoutButton.jsx`) dispatch `logout()`, which sends
 `POST /api/auth/logout` (POST since P4, so an `<img>` tag on another site cannot log you out).
 `logout_user()` clears the session; the reducer sets `user` to `null`; the routes fall back to
 the login page.
@@ -583,8 +626,8 @@ the login page.
 - **CSRF?** `CSRFProtect` on every write.
 - **Private data?** `to_public()` everywhere (no email); `to_self()` only in `authenticate`,
   `login`, `sign_up`.
-- **Frontend guard:** `ProtectedRoute.js` renders its children only if `state.session.user`
-  exists, else `<Redirect to="/" />`. This is a convenience only; the real security is on the server.
+- **Frontend guard:** `ProtectedRoute.jsx` is a layout route: it renders the matched child
+  route (`<Outlet />`) only if `state.session.user` exists, else `<Navigate to="/" replace />`. This is a convenience only; the real security is on the server.
 
 ---
 
@@ -592,28 +635,38 @@ the login page.
 
 ### 7.1 Entry point
 
-`react-app/src/index.js` creates the Redux store with `configureStore()` and renders
-`<Provider store>` > `<ModalProvider>` > `<App />`.
+`react-app/index.html` is the page Vite serves; its `<script type="module"
+src="/src/index.jsx">` starts the app. `src/index.jsx` creates the Redux store with
+`configureStore()` (the default export of `store/index.js`) and renders, with React 19's
+`createRoot(...).render(...)`, `<React.StrictMode>` > `<Provider store>` > `<ModalProvider>` > `<App />`.
+StrictMode runs every effect twice **in development only**, so you will see each page's GET
+requests twice in `npm run dev`; that is expected (all effects only load data).
 
-`context/Modal.js`: `ModalProvider` renders an empty `<div>` after the app and shares it via
-context; `<Modal onClose>` uses `ReactDOM.createPortal` to draw a background (click = close)
-and content into that div. Every popup (post modal, create post, edit caption, liked-by list,
-follower lists, sign up) uses it.
+`context/Modal.jsx`: `ModalProvider` renders an empty `<div>` after the app and shares it via
+context; `<Modal onClose>` uses `createPortal` (from `react-dom`) to draw a background (click =
+close) and content into that div. Every popup (post modal, create post, edit caption, liked-by
+list, follower lists, sign up) uses it.
 
-### 7.2 Routes (`App.js`)
+### 7.2 Routes (`App.jsx`, React Router 7)
 
-`App` waits for `authenticate()`, shows `<NavBar />` only when logged in, then a `<Switch>`
-(first match wins):
+`App` waits for `authenticate()`, shows `<NavBar />` only when logged in, then `<Routes>`.
+Everything is imported from `react-router` (in v7 `react-router-dom` is only a re-export).
+React Router ranks routes by how specific they are, so order does not matter: `/explore`
+always beats `/:userId`.
 
-| URL | Component | Shows |
+| URL | Element | Shows |
 |---|---|---|
-| `/users` | `ProtectedRoute` > `UsersList` | Early dev page: plain list of users. Its links go to `/users/<id>`, which matches no route (blank page) |
-| `/explore` | `ProtectedRoute` > `ExplorePage` | Grid of every post (`PostGrid`) |
-| `/:userId` | `ProtectedRoute` > `UserProfile` | A profile, e.g. `/1` is Demo. Catches **any** one-segment URL, so `/whatever` renders a broken profile (no 404 page yet; P31) |
-| `/` (logged in) | `HomeFeed` | Following avatars, feed, sidebar |
-| `/` (logged out) | `LoginPage` | Login card + sign-up modal |
+| `/` | `HomeFeed` if logged in, else `LoginPage` | Feed + sidebar, or the login card + sign-up modal |
+| `/users` | inside `ProtectedRoute` > `UsersList` | Early dev page: plain list of users. Its links go to `/users/<id>`, which shows the 404 page |
+| `/explore` | inside `ProtectedRoute` > `ExplorePage` | Grid of every post (`PostGrid`) |
+| `/:userId` | inside `ProtectedRoute` > `UserProfile` | A profile, e.g. `/1` is Demo. A non-numeric value (`/whatever`) shows `NotFound` |
+| `*` | `NotFound` | "Page not found" with a link home (any other URL, e.g. `/a/b/c`) |
 
-`TempFollow`, `TempPost`, `TempComment` are imported but never rendered.
+`ProtectedRoute` is a **layout route** (`<Route element={<ProtectedRoute />}>` wrapping the
+three protected routes): logged in -> `<Outlet />` renders the child; logged out ->
+`<Navigate to="/" replace />`. Navigation in code uses `useNavigate()` (`navigate("/explore")`),
+and `<Navigate>` replaces v5's `<Redirect>`. `TempFollow`, `TempPost`, `TempComment` are
+imported but never rendered.
 
 ### 7.3 `utils/apiFetch.js`
 
@@ -624,13 +677,38 @@ use `apiFetch`, never raw `fetch`, or writes fail with 400.**
 
 ### 7.4 Redux store map
 
-`store/index.js` combines 14 slice reducers (`comments` is listed twice in `combineReducers`;
-harmless). In development it also adds `redux-logger` (every action is logged in the console)
-and Redux DevTools.
+`store/index.js` calls Redux Toolkit's `configureStore({ reducer, middleware })` with 14 slices.
+RTK sets up redux-thunk and Redux DevTools, and **in development** adds checks that throw if
+state is mutated outside a reducer or a non-serializable value is dispatched; `redux-logger`
+(`createLogger({ collapsed: true })`) is added in development only.
 
-Each store file has the same pattern: action type constants, action creators, **thunks**
-(`async (dispatch) => { apiFetch...; dispatch(action) }`) and a reducer. Most reducers store
-items in an object keyed by id.
+Every store file has the same pattern (since P19):
+
+```js
+const postsSlice = createSlice({
+  name: "posts",
+  initialState: {},
+  reducers: {
+    setPosts(state, action) { Object.assign(state, keyBy(action.payload)); },
+    upsertPost(state, action) { state[action.payload.id] = action.payload; },
+    removePost(state, action) { delete state[action.payload]; },
+  },
+});
+const { setPosts, upsertPost, removePost } = postsSlice.actions;
+
+export const getAllPosts = () => async (dispatch) => {   // thunk: API call, then dispatch
+  const response = await apiFetch("/api/posts/");
+  if (response.ok) { const data = await response.json(); dispatch(setPosts(data.Posts)); return data; }
+  return response;
+};
+export default postsSlice.reducer;
+```
+
+Reducers look like they mutate `state`, but RTK uses Immer, which turns that into a safe new
+copy. `store/helpers.js` has `keyBy(list, key)` for the common "list -> object keyed by id"
+case. Thunks are plain async functions (not `createAsyncThunk`) so components keep doing
+`const errors = await dispatch(login(...))`. Action types are `"<slice>/<reducer>"`, e.g.
+`session/setUser`, `posts/upsertPost`, `userPostLikes/addLikedPost`.
 
 | State key | File | State shape | Thunks -> endpoint |
 |---|---|---|---|
@@ -670,41 +748,41 @@ as features grew, so the same data lives in several places:
   returns them in **ascending id order**, whatever order the server sent. Components then call
   `.reverse()`, so lists display highest id first, which approximates newest first.
 
-P19 (optional) would move this to Redux Toolkit with normalized slices.
+P19 moved every reducer to an RTK slice **with the same state shape** (so no component changed) but did not merge these overlapping slices or add RTK Query; that is future work (with P31 loading/error states and P43 tests).
 
 ### 7.5 Key components
 
-- **Nav bar** (`components/NavBar/index.js`): `Wordmark` logo (link to `/`), `SearchBar`, home
+- **Nav bar** (`components/NavBar/index.jsx`): `Wordmark` logo (link to `/`), `SearchBar`, home
   icon, `PostFormModal` (plus icon), explore icon, `ProfileDropDownMenu` (profile link + log out).
-- **Search** (`NavBar/SearchBar.js`): on mount dispatches `getAllUsers()` (all users), then
+- **Search** (`NavBar/SearchBar.jsx`): on mount dispatches `getAllUsers()` (all users), then
   filters **in the browser** by username prefix, shows up to 10 results; clicking one dispatches
   `getProfileUser(id)` and navigates to `/<id>`. Server-side search is P23.
-- **Home feed** (`components/HomeFeed/`): `index.js` lays out `CircleFaces` (avatars of who you
+- **Home feed** (`components/HomeFeed/`): `index.jsx` lays out `CircleFaces` (avatars of who you
   follow, from `follow`), `ActualFeed` (posts from `followingPosts`, loaded with
   `getAllFollowingPosts()`) and `SideStuff` (your card + `SideNonFollowedUsers` suggestions from
   `getNonFollowing`). In `ActualFeed` the heart icon is commented out, so the like area is an
   empty clickable `div`, and one `likePost` boolean is shared by all posts. **Liking works in the
   post modal, not the feed.** `PostSettingsModal` (three dots) links to the author's profile.
-- **Explore** (`ExplorePage/index.js`): dispatches `getAllPosts()` and renders `PostGrid`.
-- **PostGrid** (`reUsedComponents/PostGrid.js`): reads `userId` from the URL and
+- **Explore** (`ExplorePage/index.jsx`): dispatches `getAllPosts()` and renders `PostGrid`.
+- **PostGrid** (`reUsedComponents/PostGrid.jsx`): reads `userId` from the URL and
   `state.users[userId]`. If that user is found it shows only their posts (profile page),
   otherwise **all posts** (explore page, but also a profile page before `users` has loaded).
   Each tile is a `SinglePostModal`.
-- **Post modal** (`reUsedComponents/SinglePostModal.js`): renders the thumbnail; click opens a
+- **Post modal** (`reUsedComponents/SinglePostModal.jsx`): renders the thumbnail; click opens a
   `Modal` with the image, author, `EditCaptionThreeDotsModal` (edit/delete, only if
   `user.id === post.userId`), `CommentContainer` (loads `getCurrentPost` then `getAllComments`),
   the heart (`handleLikeButton`), `UserLikedListModal` (like count; click for who liked), the
   date, and the comment form (`submitComment` -> `postComment`). Each `SinglePostModal` calls
   `getUserLikedPostId()` on mount to decide if the heart starts filled, so a grid of 50 posts
   makes 50 identical `/api/users/likes` requests.
-- **Edit/delete**: `EditCaptionForm.js` -> `updatePost`; `DeletePostModal/DeletePost.js` ->
-  `deletePost`; `EditCommentForm.js` / `EditCommentModal.js` -> `updateComment` / `deleteComment`.
-- **Profile** (`UserProfile/index.js` -> `UserInfoBox.js`): loads `getProfileUser(userId)`,
+- **Edit/delete**: `EditCaptionForm.jsx` -> `updatePost`; `DeletePostModal/DeletePost.jsx` ->
+  `deletePost`; `EditCommentForm.jsx` / `EditCommentModal.jsx` -> `updateComment` / `deleteComment`.
+- **Profile** (`UserProfile/index.jsx` -> `UserInfoBox.jsx`): loads `getProfileUser(userId)`,
   decides `followTest` (am I in `profileUser.followers`?), shows the **Follow** / **Following**
   button (`handleFollow` -> `addFollowing`, `handleUnFollow` -> `deleteFollowing`), post count,
   `UserFollowerListModal` / `UserFollowingListModal`, and `PostGrid`.
-- **Login page** (`LoginPage/`): `LoginForm.js` (login + Demo Login), `SignUpModal.js` ->
-  `SignUpForm.js` + `ProPicImageUpload.js` (file picker with preview).
+- **Login page** (`LoginPage/`): `LoginForm.jsx` (login + Demo Login), `SignUpModal.jsx` ->
+  `SignUpForm.jsx` + `ProPicImageUpload.jsx` (file picker with preview).
 
 ---
 
@@ -712,10 +790,10 @@ P19 (optional) would move this to Redux Toolkit with normalized slices.
 
 ### 8.1 Logging in as demo
 
-1. `App.js` mounted earlier and ran `authenticate()` -> `GET /api/auth/` -> logged out, so
+1. `App.jsx` mounted earlier and ran `authenticate()` -> `GET /api/auth/` -> logged out, so
    `state.session.user` is `null` and `/` renders `LoginPage`. That response set the
    `csrf_token` cookie.
-2. User clicks **Demo Login** -> `demoLogIn()` in `LoginForm.js` ->
+2. User clicks **Demo Login** -> `demoLogIn()` in `LoginForm.jsx` ->
    `dispatch(login("demo@aa.io", "password"))`.
 3. `login` thunk (`store/session.js`) -> `apiFetch("/api/auth/login", {method: "POST", body: JSON})`.
    `apiFetch` adds `X-CSRFToken`.
@@ -723,9 +801,9 @@ P19 (optional) would move this to Redux Toolkit with normalized slices.
    the JSON -> `validate_on_submit()` runs `user_exists` and `password_matches`
    (`User.check_password`) -> `login_user(user)` stores the id in the session cookie ->
    returns `user.to_self()`.
-5. Thunk: `response.ok` -> `dispatch(setUser(data))` -> `SET_USER` -> `state.session.user`.
+5. Thunk: `response.ok` -> `dispatch(setUser(data))` (action `session/setUser`) -> `state.session.user`.
 6. `App` re-renders: `user` is set, so `<NavBar />` appears and `/` now renders `HomeFeed`.
-   `LoginForm` also returns `<Redirect to="/" />`.
+   `LoginForm` also returns `<Navigate to="/" replace />`.
 7. `HomeFeed` children mount and fetch: `CircleFaces` -> `getAllFollowing(user.id)`,
    `ActualFeed` -> `getAllFollowingPosts()`, `SideNonFollowedUsers` -> `getNonFollowing(...)`,
    and `SearchBar` -> `getAllUsers()`. From now on, `load_user()` in `app/__init__.py` turns the
@@ -749,9 +827,9 @@ Posting is **two requests**: upload the image first (get a URL), then create the
    The server ignores `user_id` and uses `current_user.id`.
 7. Flask: `post_routes.create_post()` -> `CreatePost` validates `img_url` and `caption` ->
    `Post(user_id=current_user.id, ...)` -> commit -> returns the new post + `users`.
-8. Thunk: `ADD_POST` adds it to `posts`, then re-fetches `getAllFollowing`, `getAllFollowers`,
+8. Thunk: `upsertPost` adds it to `posts`, then re-fetches `getAllFollowing`, `getAllFollowers`,
    `getProfileFollowing`, `getProfileUser` for the author and returns `null`.
-9. `PostForm` sees `null` (success) -> `history.push("/<your id>")` -> `onClose()`. Your profile
+9. `PostForm` sees `null` (success) -> `navigate("/<your id>")` -> `onClose()`. Your profile
    shows the new post in `PostGrid`. (It does not appear in your home feed: the feed only shows
    people you follow.)
 
@@ -781,8 +859,8 @@ sequenceDiagram
     AF->>PR: + X-CSRFToken
     PR->>DB: CreatePost valid, INSERT post (user_id = current_user.id)
     PR-->>ST: new post + users
-    ST->>ST: ADD_POST, refetch profile data
-    ST-->>PF: null, then history.push to the profile
+    ST->>ST: upsertPost, refetch profile data
+    ST-->>PF: null, then navigate to the profile
 ```
 
 ### 8.3 Liking a post
@@ -795,16 +873,16 @@ Liking happens in the post modal (`SinglePostModal`), opened from the explore pa
 2. User opens the modal and clicks the heart -> `handleLikeButton` -> since `likePost` is false,
    `dispatch(addUserLikedPostId(post.id))`, then flips `likePost` to true immediately.
 3. `addUserLikedPostId` -> `apiFetch("/api/posts/<id>/likes", {method: "POST"})` with CSRF header.
-4. Flask: `post_routes.like_post(id)` -> `get_or_404` -> if a `PostLike` for (you, post)
+4. Flask: `post_routes.like_post(id)` -> `db.get_or_404(Post, id)` -> if a `PostLike` for (you, post)
    exists, 409 -> else add `PostLike`, `UPDATE posts SET likes = coalesce(likes,0) + 1` ->
    commit (an `IntegrityError` from the unique constraint also becomes 409) ->
    `refresh(post)` -> `{"likes": n, "postId": id}`.
 5. Thunk (only if `response.ok`): `getCurrentPost(postId)` refreshes `currentPost`, and
-   `ADD_LIKED_POST_ID` stores `{likes, postId}` in `userPostLikes`.
+   `addLikedPost` stores `{likes, postId}` in `userPostLikes`.
 6. `UserLikedListModal` shows `userPostLikes[postId].likes` if you liked it, else
    `currentPost.likes`, so the number updates.
 7. Clicking again does the reverse: `deleteUserLikedPostId` -> `DELETE /api/posts/<id>/likes`
-   -> `unlike_post` -> new count -> `DELETE_LIKED_POST_ID` + `getCurrentPost`.
+   -> `unlike_post` -> new count -> `removeLikedPost` + `getCurrentPost`.
 
 Note the heart is flipped before the server answers and is not flipped back on a 409/404, so the
 icon can get out of sync with the database; a page reload fixes it (P31 plans proper optimistic updates).
@@ -816,32 +894,36 @@ icon can get out of sync with the database; a page reload fixes it (P31 plans pr
 | Symptom | Look at | Why |
 |---|---|---|
 | **400 `CSRF check failed`** on a POST/PUT/DELETE | `react-app/src/utils/apiFetch.js`, the calling store file, `app/__init__.py` (`inject_csrf_token`, `handle_csrf_error`) | The call used raw `fetch` (no header), the cookie was not set yet (no GET happened first), the token expired (tab open overnight: reload), or Flask restarted with a new random `SECRET_KEY` |
-| Logged out every time Flask restarts (dev) | `.env` `SECRET_KEY`, `app/config.py` `_secret_key()` | Empty `SECRET_KEY` means a new random key per process, so old session cookies are invalid |
-| **401 `Unauthorized`** from an API call | `@login_required` on the route, `unauthorized()` in `app/__init__.py`, `authenticate` in `store/session.js` | Not logged in or session cookie lost (different origin/port without the CRA proxy, or `Secure` cookies over plain HTTP in production) |
-| **409** when liking | `like_post` in `app/api/post_routes.py`; `handleLikeButton` in `SinglePostModal.js` / `ActualFeed.js` | You already liked it. Usually the frontend's local `likePost` state is out of sync (it flips before the response; the feed shares one boolean for all posts) |
-| **409** on follow/unfollow | `follow_user` / `unfollow_user` in `app/api/user_routes.py`; `followTest` in `UserInfoBox.js` | Already following / not following; the button state was computed from stale `profileUser.followers` |
+| Logged out every time Flask restarts (dev) | `.env` `SECRET_KEY`, `DevConfig` in `app/config.py` | Empty `SECRET_KEY` means a new random key per process, so old session cookies are invalid |
+| **401 `Unauthorized`** from an API call | `@login_required` on the route, `unauthorized()` in `app/__init__.py`, `authenticate` in `store/session.js` | Not logged in or session cookie lost (different origin/port without the Vite proxy, or `Secure` cookies over plain HTTP in production) |
+| **409** when liking | `like_post` in `app/api/post_routes.py`; `handleLikeButton` in `SinglePostModal.jsx` / `ActualFeed.jsx` | You already liked it. Usually the frontend's local `likePost` state is out of sync (it flips before the response; the feed shares one boolean for all posts) |
+| **409** on follow/unfollow | `follow_user` / `unfollow_user` in `app/api/user_routes.py`; `followTest` in `UserInfoBox.jsx` | Already following / not following; the button state was computed from stale `profileUser.followers` |
 | **413** on image upload | `MAX_CONTENT_LENGTH` in `app/config.py`, `app/errors.py` | Request body over 10 MB |
 | **400** "file type not permitted" / "not a valid image" (there is no 415 in this code) | `allowed_file`, `validate_image` in `app/s3_helpers.py`; `accept=` on the file inputs | Wrong extension, or the bytes are not a real JPEG/PNG/WEBP/GIF |
 | **502** "upload failed" / "S3 is not configured" | `upload_file_to_s3` in `app/s3_helpers.py`, `.env` `S3_BUCKET`/`S3_KEY`/`S3_SECRET`, Flask console (real AWS error is printed there) | Empty bucket name, bad credentials, or bucket permissions |
 | Upload works but the image is broken (403 in Network tab) | S3 bucket policy (see `CHANGES.md` P7) | Uploads no longer send `public-read` ACL; the bucket needs a public-read policy on `uploads/*` or CloudFront (P37) |
-| **Home feed empty** | `me_following_posts` in `app/api/me_routes.py`, `ActualFeed.js`, `followingPosts.js`, the `follows` table | Feed shows only users you follow, never your own posts; a new user follows nobody; or seeds did not run |
-| Feed or grid order looks odd | `Object.values(...).reverse()` in `ActualFeed.js`, `PostGrid.js`, `ExplorePage/index.js` | Slices are objects keyed by id, so the server's order is lost and the display is "highest id first" |
-| **404 on refresh of `/explore`** (or `/3`) when Flask serves the build | `Flask(..., static_url_path='/')` and `react_root` in `app/__init__.py` | Flask's static route catches the path before the React catch-all. Use `npm start` for dev or start from `/`. Fix planned P31/P33 |
-| Profile page shows everyone's posts | `PostGrid.js` (`state.users[userId]`), `getAllUsers` in `SearchBar.js` | `PostGrid` falls back to all posts if `users` has not loaded that user yet |
-| Blank page at `/users/3` or a broken profile at `/abc` | `App.js` routes | No `/users/:id` route; `/:userId` catches every one-segment URL; no 404 page yet |
+| **Home feed empty** | `me_following_posts` in `app/api/me_routes.py`, `ActualFeed.jsx`, `followingPosts.js`, the `follows` table | Feed shows only users you follow, never your own posts; a new user follows nobody; or seeds did not run |
+| Feed or grid order looks odd | `Object.values(...).reverse()` in `ActualFeed.jsx`, `PostGrid.jsx`, `ExplorePage/index.jsx` | Slices are objects keyed by id, so the server's order is lost and the display is "highest id first" |
+| **404 on refresh** of a page when Flask serves the build | `react_root` and `FRONTEND_DIST` in `app/__init__.py`; `react-app/build/` | Fixed in P18. If it happens: the build is missing (`npm run build`), or the URL has a dot in its last segment (treated as a missing file -> 404) |
+| Profile page shows everyone's posts | `PostGrid.jsx` (`state.users[userId]`), `getAllUsers` in `SearchBar.jsx` | `PostGrid` falls back to all posts if `users` has not loaded that user yet |
+| "Page not found" at `/users/3` or `/abc` | `App.jsx` routes, `UserProfile/index.jsx` | No `/users/:id` route (the `*` route shows NotFound); non-numeric profile ids show NotFound on purpose. An unknown numeric id (`/99999`) still shows an empty profile shell (P31) |
 | Login says "Email provided not found." for demo | `app/seeds/users.py`, your `DATABASE_URL` | Seeds not loaded into this database (run `flask db upgrade && flask seed all`) |
 | **500** `Internal server error` | Flask console (`app.logger.exception` in `app/errors.py`) | The traceback is logged server-side only; in debug mode it is re-raised so you see it directly |
-| Production container refuses to start | `app/config.py` | `FLASK_ENV=production` requires `SECRET_KEY` and `DATABASE_URL` (on purpose since P9) |
-| All data gone after a deploy | `.github/workflows/main.yml`, `app/seeds/__init__.py` | The old workflow runs `flask seed undo` + `flask seed all` (which also TRUNCATEs in production) on every push to `main` |
+| Production container refuses to start | `app/config.py` (`ProdConfig`) | `FLASK_ENV=production` requires `SECRET_KEY` and `DATABASE_URL` (on purpose since P9) |
+| No debugger / auto-reload in `flask run` | `.env` | Flask 3 ignores `FLASK_ENV` for that; set `FLASK_DEBUG=1` or use `flask run --debug` |
+| All data gone | Your shell history, `app/seeds/__init__.py` | Someone ran `flask seed all --reset` / `flask seed undo` locally, or `docker compose down -v`. Both seed commands refuse in production since P0, and the Heroku workflow that wiped data on every push was deleted |
+| `Can't locate revision ...` on `flask db upgrade` | `migrations/versions/`, your database file | The database was created by the pre-P15 migrations. Delete it (`instance/dev.db` or `app/dev.db`) and run `flask db upgrade && flask seed all` |
+| Blank page / `logger is not a function` in `npm run dev` | `react-app/src/store/index.js` | Happened on the P16-P18 commits (redux-logger import); fixed in P19 |
+| `ModuleNotFoundError` / odd errors after pulling Batch 2 | `.python-version`, `requirements.txt` | Recreate the venv with **Python 3.12** and `pip install -r requirements.txt`; `pipenv` is no longer used |
 
 ---
 
-## 10. What changed in Batch 1 and what is coming
+## 10. What changed in Batches 1 and 2 and what is coming
 
 Full details, verification steps and caveats are in `CHANGES.md`; the full plan is in
 `MODERNIZATION_PLAN.md`.
 
-**Batch 1 (done, on the current Flask 2.0 / SQLAlchemy 1.4 / CRA stack):**
+**Batch 1 (done, on the old Flask 2.0 / SQLAlchemy 1.4 / CRA stack):**
 
 - **P2** stopped tracking `app/dev.db`, `.pyc` files and `.envexample`; new `.gitignore`.
 - **P3** owner checks on edit/delete, login required for create post and upload, signup
@@ -857,18 +939,33 @@ Full details, verification steps and caveats are in `CHANGES.md`; the full plan 
 - **P11** original Postpix branding (wordmark, teal accent, favicon, demo note) to stop looking
   like Instagram's login page.
 
-**P1 (Tyler action, no code):** the AWS key leaked in old git history belongs to the original
-teammate; they must deactivate it. Also generate a new `SECRET_KEY`.
+**Batch 2 (done, modern stack):**
 
-**Coming (Batch 2 and later):** app factory (P12), Python 3.12 / Flask 3 / SQLAlchemy 2 (P13-P14),
-migration reset (P15), Vite + React 19 + Router v7 (P16-P18), optional Redux Toolkit (P19),
-performance (P20-P26: lighter payloads, indexes, pagination, server search, image resizing),
-UI/accessibility (P27-P32: viewport, responsive layout, accessible modals, 404 page, visual
-refresh), Docker + AWS with CloudFront in front of S3 and EC2 (P33-P41, replacing the Heroku
-workflow and adding backups and a demo reset), tests and CI (P42-P45), docs (P46-P48).
+- **P0** safe seeding: Heroku workflow deleted; `flask seed all` only seeds an empty DB;
+  `--reset` / `undo` refuse in production; no hard-coded ids, no TRUNCATE.
+- **P12** app factory `create_app()` with Dev/Test/Prod config classes, `wsgi.py`, `/api/health`.
+- **P13** Python 3.12, Flask 3.1, SQLAlchemy 2.1, psycopg 3 and current packages;
+  `requirements.in` -> pinned `requirements.txt`; Pipfile removed; pip-audit clean.
+- **P14** SQLAlchemy 2.0 query style, `db.get_or_404`, no dynamic relationships,
+  timezone-aware database timestamps, ISO-8601 dates in the API.
+- **P15** Heroku schema hack removed; one baseline migration (keeps the P6 constraint).
+- **P16** Create React App -> Vite (npm audit 193 -> 0).
+- **P17** React 19 (`createRoot`), react-redux 9.
+- **P18** React Router 7, layout-route auth, 404 page, deep-link refresh fixed in Flask.
+- **P19** Redux Toolkit `configureStore` + `createSlice` (same state shape).
+
+**P1 (Tyler action, no code):** the AWS key leaked in old git history belongs to the original
+teammate; they must deactivate it. Also generate a new `SECRET_KEY`, and delete the
+`HEROKU_API_KEY` / `HEROKU_APP_NAME` repo secrets on GitHub.
+
+**Coming (Batch 3 and later):** performance (P20-P26: lighter payloads, indexes, pagination,
+server search, image resizing), UI/accessibility (P27-P32: viewport, responsive layout,
+accessible modals, loading/error states, visual refresh), Docker + AWS with CloudFront in front
+of S3 and EC2 (P33-P41, including the new deploy pipeline, backups and a demo reset), tests and
+CI (P42-P45), docs (P46-P48).
 
 **Open questions from `CHANGES.md`:** show your own posts in the home feed? keep the teal
-branding? rename the repo to `postpix`? fix the deep-link 404 early?
+branding? rename the repo to `postpix`? (The deep-link question was answered by P18.)
 
 ---
 
@@ -889,7 +986,8 @@ not the same as lines or ownership, so check against your own memory):
 | `components/NavBar` | 7 / 13 / 12 |
 | `components/LoginPage` | 11 / 1 / 5 |
 
-The Batch 1 commits on `modernize` (P2-P11, Nov 2026) are the maintenance work. If AI tools
+The Batch 1 and Batch 2 commits on `modernize` (P2-P11 and P0, P12-P19, Nov 2026) are the
+maintenance work. If AI tools
 helped with that work, say so plainly, and be ready to explain every change in your own words:
 that is what the interviewer is testing.
 
@@ -944,14 +1042,17 @@ by time (an N+1 pattern). I replaced it with one query using a subquery on `foll
 Next steps are lighter user payloads, indexes and pagination.
 
 **9. "How does Redux fit in, and what would you change?"**
-Each feature has a store file with action types, thunks for API calls, and a reducer keyed by
-id. It grew organically across three people, so the same data (posts, following lists) lives
-in several slices and components re-fetch to stay in sync. I would consolidate into normalized
-slices, possibly with Redux Toolkit, and fix ordering by storing ids in arrays.
+Each feature has a store file with thunks for API calls and a Redux Toolkit slice keyed by id.
+I migrated the hand-written reducers to `createSlice` / `configureStore` without changing the
+state shape, so no component had to change and the risk stayed low. It grew organically
+across three people, so the same data (posts, following lists) still lives in several slices
+and components re-fetch to stay in sync. Next I would merge those slices or move server data
+to RTK Query, and fix ordering by storing ids in arrays.
 
 **10. "What would you do next / what are you proudest of?"**
-Next is upgrading to supported versions (Python 3.12, Flask 3, SQLAlchemy 2, Vite, React 19),
-adding pytest tests for the security fixes, and moving deployment from dead Heroku to Docker on
+I upgraded everything to supported versions (Python 3.12, Flask 3, SQLAlchemy 2, Vite,
+React 19, React Router 7, Redux Toolkit) one commit at a time, keeping the app working after
+each step. Next is adding pytest tests for the security fixes, and moving deployment from dead Heroku to Docker on
 AWS behind CloudFront. I am proud that each fix is small, documented with how to verify it, and
 reversible, and that I found real issues like a leaked key in git history and a deploy script
 that wiped the database.
@@ -962,13 +1063,14 @@ that wiped the database.
 
 - **Blueprint** - a Flask group of routes registered under a URL prefix (e.g. `post_routes` at `/api/posts`).
 - **Route / view function** - a Python function Flask calls for a URL + method; returning a `dict` sends JSON.
-- **ORM (SQLAlchemy)** - maps Python classes (models) to tables so you write `Post.query...` instead of SQL.
+- **ORM (SQLAlchemy)** - maps Python classes (models) to tables so you write `db.session.scalars(select(Post).where(...))` instead of SQL.
+- **App factory** - `create_app()` builds a new configured Flask app on demand (for the server, CLI and tests) instead of one global app at import time.
 - **Model** - a class like `User` or `Post` that represents a table; each instance is a row.
 - **Relationship / backref** - an attribute that loads related rows (`post.users`, `user.followers`); a backref creates the reverse attribute automatically (`user.follows`).
 - **Many-to-many** - each user can like many posts and each post has many likers; stored in a middle table (`post_likes`, `follows`).
 - **Association table** - a middle table with only foreign keys and no model class (`follows`).
 - **Cascade** - deleting a parent row also deletes its children (a post's comments and likes).
-- **Migration (Alembic / Flask-Migrate)** - a versioned script that changes the database schema; `flask db upgrade` applies them in order.
+- **Migration (Alembic / Flask-Migrate)** - a versioned script that changes the database schema; `flask db upgrade` applies them in order. The **baseline** is the first one, which creates every table (`0001_baseline`).
 - **Seed** - demo data inserted by `flask seed all`.
 - **Flask-Login** - extension that remembers who is logged in through the session cookie and provides `current_user` and `@login_required`.
 - **Session cookie** - a cookie signed with `SECRET_KEY` holding the logged-in user id; can be read but not forged without the key.
@@ -980,12 +1082,14 @@ that wiped the database.
 - **S3** - Amazon's file storage; files live in a "bucket" under a "key" like `uploads/abc.png`.
 - **boto3** - the AWS SDK for Python, used to upload to S3.
 - **ACL / bucket policy** - two ways to make S3 objects public; new buckets disable ACLs, so use a policy or CloudFront.
-- **Redux store** - one JavaScript object holding app state, split into slices by `combineReducers`.
-- **Action** - a plain object like `{type: "posts/ADD_POST", payload: post}` describing a change.
-- **Reducer** - a pure function `(state, action) => newState` for one slice.
+- **Redux store** - one JavaScript object holding app state, split into slices; created with Redux Toolkit's `configureStore`.
+- **Slice (`createSlice`)** - one part of the store plus its reducers; RTK generates the action creators.
+- **Action** - a plain object like `{type: "posts/upsertPost", payload: post}` describing a change.
+- **Reducer** - a function `(state, action) => newState` for one slice; in RTK you may "mutate" `state` and Immer makes the copy.
 - **Thunk** - a function dispatched like an action that can do async work (API calls) and then dispatch real actions (redux-thunk middleware).
 - **useSelector / useDispatch** - React-Redux hooks to read state and dispatch actions.
-- **ProtectedRoute** - a wrapper route that redirects to `/` if no user is logged in.
-- **Portal (modal)** - `ReactDOM.createPortal` renders the modal into a separate DOM node outside the component tree.
-- **CRA proxy** - the `"proxy"` setting in `package.json` that forwards `/api` calls from port 3000 to Flask on port 5000 in development.
+- **ProtectedRoute** - a layout route that renders its child routes (`<Outlet />`) for logged-in users and redirects to `/` otherwise.
+- **Portal (modal)** - `createPortal` (from `react-dom`) renders the modal into a separate DOM node outside the component tree.
+- **Vite dev proxy** - `server.proxy` in `react-app/vite.config.js` forwards `/api` calls from port 3000 to Flask on port 5000 in development.
+- **Vite** - the frontend dev server and bundler (replaced Create React App in P16); env vars for the browser must start with `VITE_`.
 - **SPA deep link** - a URL like `/explore` that only exists in React Router; the server must return `index.html` for it.
