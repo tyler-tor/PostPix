@@ -1,5 +1,5 @@
 import { createStore, combineReducers, applyMiddleware, compose } from "redux";
-import thunk from "redux-thunk";
+import { thunk } from "redux-thunk"; // named export since redux-thunk 3
 import logger from "redux-logger";
 import postsReducer from "./post";
 import commentsReducer from "./comments";

@@ -82,6 +82,7 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 - **P14:** API timestamps were switched to ISO-8601 as the plan says; the frontend got a small `formatDate()` helper (the plan listed "frontend date formatting" without detail). `created_at`/`updated_at` also keep `default=func.now()` until P15 so the app keeps working on the old-migration schema between the two commits.
 - **P13:** installed SQLAlchemy 2.1.9 (newest; the plan named 2.0); all checks pass. Also touched the old `Dockerfile` (Python 3.12, `gunicorn wsgi:app` in P12, no separate psycopg2, echo off) and the README install steps so they are not broken before P33/P46.
 - **P15:** the plan said "add P6/P21 changes as new migrations" on top of the baseline; as instructed for Batch 2, the P6 unique constraint is folded **into** the baseline instead (no data to migrate). P21 indexes are still a future migration. Also added a constraint naming convention, `NOT NULL` on `follows` columns and `render_as_batch=True` (small, needed for clean future migrations).
+- **P17:** removed the unused FontAwesome packages instead of bumping them, and bumped redux/redux-thunk to 5/3 here (needed by react-redux 9) rather than waiting for P19.
 
 ---
 
@@ -724,3 +725,32 @@ Toolkit).
   `import.meta.env`. Linting (`eslint`) came with CRA and is gone until P43. The 4.7 MB
   `stock.jpg` is still bundled (P24). Deep-link refresh on the Flask-served build is
   fixed in P18.
+
+## P17 — Upgrade React 17 -> 19
+- **Problem:** React 17 is out of support, `ReactDOM.render` was removed in React 19, and
+  newer libraries (react-redux 9, react-router 7, Redux Toolkit 2) need React 18+.
+- **What changed:**
+  - `react` / `react-dom` 17 -> **19.3.1**; `react-redux` 7 -> **9.3.1**; `redux` 4 ->
+    5.0.1 and `redux-thunk` 2 -> 3.1.0 (react-redux 9 expects Redux 5; thunk 3 only has a
+    named export, so `import { thunk } from "redux-thunk"`); `react-icons` 4 -> 5.7.0
+    (every icon used still exists; the build would fail otherwise).
+  - `src/index.jsx`: `ReactDOM.render(<App/>, root)` -> `createRoot(root).render(<App/>)`.
+  - `src/context/Modal.jsx`: `ReactDOM.createPortal` -> named `createPortal` import.
+  - Removed `@fortawesome/free-solid-svg-icons` and `@fortawesome/react-fontawesome`:
+    nothing imports them (the plan said to bump them; removing unused packages is the
+    smaller, safer change).
+  - StrictMode double-effects: React 18+ runs effects twice in **development** only. I
+    checked every `useEffect`: they only load data (GET requests), so the second run is
+    a harmless duplicate fetch; no effect creates, likes or deletes anything.
+- **Files:** `react-app/package.json`, `react-app/package-lock.json`,
+  `react-app/src/index.jsx`, `react-app/src/context/Modal.jsx`,
+  `react-app/src/store/index.js`.
+- **How to verify:** `npm install && npm run build` -> OK (JS 306 kB, 93 kB gzipped;
+  React 19 is larger than 17). `npm audit` -> 0 vulnerabilities. Headless jsdom run of the
+  built app against Flask: Demo Login -> feed (31 images), Explore (50), open a post modal,
+  like it (0 -> 1 likes, red heart), add a comment (shown in the modal), close the modal,
+  open a profile, back home, log out via the profile menu; **no console errors**.
+- **Things to watch:** in `npm run dev` you will see each page's GET requests twice in the
+  Network tab and in the redux-logger output; that is StrictMode, not a bug, and does
+  not happen in the production build. react-router is still v5 here (works with React 19
+  for these routes); P18 upgrades it.
