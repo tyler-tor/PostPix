@@ -1,5 +1,5 @@
-# Start with the python:3.9 image
-FROM python:3.9
+# Start with the python:3.12 image (temporary; P33 replaces this Dockerfile)
+FROM python:3.12-slim
 # Set the following enviroment variables
 #
 # REACT_APP_BASE_URL -> Your deployment URL
@@ -8,8 +8,8 @@ ENV REACT_APP_BASE_URL=https://instapostpix.herokuapp.com/
 ENV FLASK_APP=app
 # FLASK_ENV -> Tell flask to use the production server
 ENV FLASK_ENV=production
-# SQLALCHEMY_ECHO -> Just set it to true
-ENV SQLALCHEMY_ECHO=True
+# SQLALCHEMY_ECHO -> keep off in production (logs every query)
+ENV SQLALCHEMY_ECHO=false
 # Set the directory for upcoming commands to /var/www
 WORKDIR /var/www/
 # Copy all the files from your repo to the working directory
@@ -19,9 +19,8 @@ COPY . .
 COPY /react-app/build/* app/static/
 # Run the next two python install commands with PIP
 # install -r requirements.txt
-RUN pip install -r requirements.txt
-# install psycopg2
-RUN pip install psycopg2
+RUN pip install --no-cache-dir -r requirements.txt
+# (the Postgres driver, psycopg 3, is in requirements.txt)
 
 # Start the flask environment by setting our
 # closing command to gunicorn wsgi:app (the app factory entry point)

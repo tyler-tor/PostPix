@@ -18,11 +18,13 @@ Welcome to our Instagram Clone Group Project. This is a web app that allows you 
 
 ## Steps on getting started
    1. pull the project to clone
-   2. pipenv install dependencies 
+   2. Install Python 3.12, create a virtualenv and install dependencies:
+      `python3.12 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
+      (dev tools: `pip install -r requirements-dev.txt`)
    3. Make sure you have Docker installed on your computer
    4. Once dependencies are installed create a .env file based on your .env.example
       1. To create/seed your database run the following
-         - pipenv shell
+         - source .venv/bin/activate
          - flask db upgrade
          - flask seed all
    5. Run flask run to start the backend in your root folder

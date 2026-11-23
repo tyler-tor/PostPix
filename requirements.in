@@ -1,0 +1,16 @@
+# Direct runtime dependencies only. requirements.txt is generated from this file:
+#   uv pip compile requirements.in -o requirements.txt --python-version 3.12
+# (or: pip-compile requirements.in). Edit this file, then re-run the command.
+Flask>=3.1
+Flask-SQLAlchemy>=3.1
+SQLAlchemy>=2.0
+Flask-Migrate>=4.1
+Flask-Login>=0.6.3
+Flask-WTF>=1.2
+WTForms>=3.2
+email-validator>=2.2
+boto3
+Pillow>=11
+gunicorn>=23
+psycopg[binary]>=3.2
+python-dotenv>=1.0

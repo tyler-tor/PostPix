@@ -511,3 +511,58 @@ Toolkit).
 - **Things to watch:** anything that did `from app import app` must now call
   `create_app()` (only the old Dockerfile did). `migrations/env.py` did not need changes
   for the factory (it uses `current_app`); it is cleaned up in P15.
+
+## P13 — Upgrade Python to 3.12 and backend packages to current
+- **Problem:** The backend ran on Python 3.9 (end of life Oct 2025) with 2021-era
+  packages (Flask 2.0, SQLAlchemy 1.4, Werkzeug 2.0, gunicorn 20...). `pip-audit` on
+  `requirements.txt` reported **138 known vulnerabilities in 10 packages** at the start of
+  Batch 2 (the plan's audit said 81; new advisories were published since). There were two
+  dependency files that disagreed (`Pipfile` and `requirements.txt`; the old CI
+  regenerated one from the other) and unused pins (`GeoAlchemy2`, `python-editor`, ...).
+- **What changed:**
+  - One tool: `requirements.in` lists only the **direct** dependencies; `requirements.txt`
+    is the fully pinned file generated from it with
+    `uv pip compile requirements.in -o requirements.txt --python-version 3.12`
+    (`pip-compile` works too). `requirements-dev.in` -> `requirements-dev.txt` adds
+    pytest, ruff, moto[s3] and pip-audit, constrained to the same versions. Deleted
+    `Pipfile` and `Pipfile.lock`. Added `.python-version` (`3.12`).
+  - New versions: Flask 3.1.3, Werkzeug 3.1.9, Flask-SQLAlchemy 3.1.1, SQLAlchemy
+    2.1.9, Flask-Migrate 4.1.0 / Alembic 1.20.1, Flask-Login 0.6.3, Flask-WTF 1.3.0,
+    WTForms 3.3.2, email-validator 2.4.0, boto3 1.44.10, Pillow 13.0.0, gunicorn
+    27.0.1, python-dotenv 1.2.4, and **psycopg 3** (`psycopg[binary]` 3.3.9) instead of
+    the unpinned `psycopg2` the Dockerfile installed. Dropped GeoAlchemy2, python-editor,
+    greenlet, six, packaging and other unused or transitive pins.
+  - `app/config.py`: Postgres URLs (`postgres://` or `postgresql://`) are rewritten to
+    `postgresql+psycopg://` so SQLAlchemy uses psycopg 3.
+  - `migrations/env.py`: `db.get_engine()` (deprecated in Flask-SQLAlchemy 3, removed in
+    3.2) -> `db.engine`; the URL is rendered with the password so Alembic can connect.
+  - `Dockerfile` (still the old Heroku-style one until P33): `python:3.12-slim`, no
+    separate `pip install psycopg2`, and `SQLALCHEMY_ECHO=false` (the P9 note flagged
+    `True`).
+  - `.env.example`: documents `FLASK_DEBUG=1` and the instance-folder SQLite path.
+    `README.md`: install steps use a venv + `pip install -r requirements.txt` instead of
+    pipenv (full README rewrite is P46).
+- **Files:** new `requirements.in`, `requirements-dev.in`, `requirements-dev.txt`,
+  `.python-version`; `requirements.txt`, `app/config.py`, `migrations/env.py`,
+  `Dockerfile`, `.env.example`, `README.md`; deleted `Pipfile`, `Pipfile.lock`.
+- **How to verify:** `python3.12 -m venv .venv && source .venv/bin/activate && pip install
+  -r requirements.txt -r requirements-dev.txt`, then `flask db upgrade && flask seed all
+  && flask run`. `pip-audit -r requirements.txt` -> **No known vulnerabilities found**
+  (also for `requirements-dev.txt`). All test-client scripts pass on Python 3.12 with the
+  new packages (P0, P3-P10, P12: 97/97); `gunicorn wsgi:app` serves `/api/health`.
+- **Things to watch (breaking for local runs):**
+  - **Python 3.12 is required** now (3.13 should also work). Recreate your virtualenv;
+    `pipenv` is no longer used.
+  - **Flask 3 ignores `FLASK_ENV` for debug mode.** Use `FLASK_DEBUG=1` (or `flask run
+    --debug`) for the reloader/debugger. `FLASK_ENV` is still read by our own config to
+    pick development/testing/production.
+  - **SQLite `dev.db` moved**: Flask-SQLAlchemy 3 resolves a relative
+    `sqlite:///dev.db` inside the `instance/` folder (`instance/dev.db`, git-ignored),
+    not `app/dev.db`. Your old `app/dev.db` is no longer used (and P15 resets the
+    migrations, so start fresh with `flask db upgrade && flask seed all`).
+  - Postgres with psycopg 3 was **not tested against a real Postgres server** here (no
+    Postgres available in the sandbox); only the URL rewrite and driver loading were
+    checked. Test it with the P34 docker compose Postgres.
+  - SQLAlchemy 2.1 is newer than the 2.0 the plan named; everything tested fine. If a
+    library ever complains, pin `SQLAlchemy<2.1` in `requirements.in` and recompile.
+  - Code still uses legacy `Model.query.get()`; it works but warns until P14.

@@ -19,8 +19,16 @@ def _env_bool(name, default=False):
 
 
 def _normalize_db_url(url):
-    # SQLAlchemy only accepts 'postgresql://', but some hosts hand out 'postgres://'.
-    return url.replace('postgres://', 'postgresql://', 1)
+    """Use the psycopg 3 driver for Postgres URLs.
+
+    SQLAlchemy only accepts 'postgresql://' (some hosts hand out 'postgres://'),
+    and a plain 'postgresql://' means the old psycopg2 driver, which we no
+    longer install. Both become 'postgresql+psycopg://'.
+    """
+    for prefix in ('postgres://', 'postgresql://'):
+        if url.startswith(prefix):
+            return 'postgresql+psycopg://' + url[len(prefix):]
+    return url
 
 
 class Config:
