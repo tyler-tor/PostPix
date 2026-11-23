@@ -75,6 +75,7 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 ## Deviations from plan
 
 - **P5:** used `Model.query.get_or_404()` (works on the current Flask-SQLAlchemy 2.5) instead of `db.get_or_404()` (Flask-SQLAlchemy 3). Switch in P14.
+- **P6:** kept the `posts.likes` counter (the plan's alternative option) but made it race-safe and recounted, instead of dropping the column; the new migration sits on top of the existing chain because P15 (migration reset) is Batch 2.
 
 ---
 
@@ -213,3 +214,36 @@ _None yet._
   The frontend still mostly ignores error bodies (no toast/message); P31 adds proper
   error states. In debug/testing mode unexpected exceptions are re-raised so you still
   see the traceback locally.
+
+## P6 — Make likes correct
+- **Problem:** Nothing stopped a user liking the same post many times: `like_post` never
+  checked for an existing like and the `post_likes` table had no unique constraint, so
+  double-clicking (or a script) inflated counts. The count lived in a separate
+  `posts.likes` column updated in Python (`post.likes += 1`), so two simultaneous likes
+  could overwrite each other. `unlike_post` built its response **before** decrementing, so
+  it returned the old count. Seed data hard-coded fake counts: `posts.likes` summed to
+  130 while only 17 real `post_likes` rows existed.
+- **What changed:** New Alembic migration `a1f3c9d2e7b4` deletes duplicate like rows
+  (keeps the oldest), adds a unique constraint `uq_post_likes_user_post` on
+  `(user_id, post_id)`, and recounts every `posts.likes` from the real rows. The model
+  declares the same constraint. `like_post` returns **409** if you already liked the
+  post, increments the counter in SQL (`likes = likes + 1`, race-safe), and also turns a
+  racing duplicate (`IntegrityError`) into a 409. `unlike_post` deletes your like,
+  decrements in SQL (never below 0) and returns the **new** count; unliking a post you
+  have not liked is a 404. Seeds no longer hard-code `likes=`; `seed_post_likes()` ends
+  with `recount_post_likes()` so counts always match rows.
+- **Files:** `app/models/postLike.py`, `app/api/post_routes.py`, `app/seeds/posts.py`,
+  `app/seeds/postLikes.py`, new `migrations/versions/a1f3c9d2e7b4_unique_post_likes.py`.
+- **How to verify:** `flask db upgrade && flask seed undo && flask seed all`. Logged in
+  as demo: `POST /api/posts/5/likes` -> `{"likes": 1}`; again -> 409; `DELETE` ->
+  `{"likes": 0}`; again -> 404. In SQL:
+  `SELECT id FROM posts p WHERE likes != (SELECT COUNT(*) FROM post_likes WHERE post_id=p.id);`
+  returns no rows. Also tested the migration on a DB with injected duplicate likes and a
+  wrong counter (downgrade -> insert duplicates -> upgrade): duplicates removed, counts fixed.
+  Test-client script: 8/8.
+- **Things to watch / follow-ups:** The demo feed will show **much lower** like numbers
+  than before (17 total instead of 130) because the old numbers were fake. The plan's
+  other option (drop `posts.likes` and count with a grouped query) was not done in Batch
+  1; the counter is kept but now always matches. The migration was added on top of the
+  existing chain; P15 (reset migrations) should fold the constraint into the new initial
+  migration. The `flask seed all` production branch still uses raw SQL strings (fixed in P14).

@@ -1,4 +1,14 @@
+from sqlalchemy import text
 from app.models import db, PostLike
+
+
+def recount_post_likes():
+    """Set every posts.likes counter to the real number of post_likes rows."""
+    db.session.execute(text(
+        'UPDATE posts SET likes = '
+        '(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = posts.id)'
+    ))
+    db.session.commit()
 
 def seed_post_likes():
     postlike1 = PostLike(
@@ -94,6 +104,7 @@ def seed_post_likes():
     db.session.add(postlike17)
 
     db.session.commit()
+    recount_post_likes()
 
 
 def undo_post_likes():

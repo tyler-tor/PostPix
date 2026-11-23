@@ -6,6 +6,8 @@ from app.models import Post, User, Comment, db
 from app.forms.create_post import CreatePost
 from app.forms.update_post import UpdatePost
 from app.forms.create_comment import CreateComment
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 
 
 
@@ -133,27 +135,26 @@ def get_user_liked(id):
 @login_required
 def like_post(id):
     '''
-        current user like a post
+        current user like a post (once)
     '''
-    post = Post.query.get(id)
-    if(post):
-        post_like = PostLike(
-        user_id=current_user.id,
-        post_id=id
-        )
-        post.likes += 1
-        db.session.add(post_like)
+    post = Post.query.get_or_404(id, description='Post not found')
+    already = PostLike.query.filter_by(user_id=current_user.id, post_id=id).first()
+    if already:
+        return {'errors': ['You already liked this post']}, 409
+    db.session.add(PostLike(user_id=current_user.id, post_id=id))
+    # Increment in SQL (likes = likes + 1) so two simultaneous likes can't
+    # overwrite each other's count.
+    Post.query.filter_by(id=id).update({Post.likes: func.coalesce(Post.likes, 0) + 1},
+                                       synchronize_session=False)
+    try:
         db.session.commit()
-        # user = User.query.get(current_user.id)
-        # #! update return to new user table
-        # user_dict = user.to_dict();
-        # for postId in user_dict['likes']:
-        #     post = Post.query.get(postId['postId'])
-        #     postId['likes'] = post.likes
+    except IntegrityError:
+        # Unique constraint hit by a racing duplicate request.
+        db.session.rollback()
+        return {'errors': ['You already liked this post']}, 409
+    db.session.refresh(post)
+    return {'likes': post.likes, 'postId': post.id}
 
-
-        return {'likes' : post.likes, 'postId' : post.id }
-    return {'errors': ['Post not found']}, 404
 
 @post_routes.route('/<int:id>/likes', methods=['DELETE'])
 @login_required
@@ -161,25 +162,17 @@ def unlike_post(id):
     '''
         current user unlike post
     '''
-    curr_post = Post.query.get(id)
-    if(curr_post):
-        for post in curr_post.post_likes:
-            # print('DEBUG TEST IN DELETE ROUTE---------------------------------------------',post.to_dict())
-            post_dict = post.to_dict()
-            curr_post_dict = curr_post.to_dict()
-            if post_dict['userId'] == current_user.id and post_dict['postId'] == id:
-
-                if curr_post.likes > 0:
-                    curr_post.likes -= 1
-
-                db.session.delete(post)
-                db.session.commit()
-
-                #! update return with full user dict.
-                # print('DELETE LIKE ENDPOINT---------------------------------------------', curr_post_dict)
-                return {'postId': post_dict['postId'], 'likes' : curr_post_dict['likes']}
-        return {'errors' : ['You have not liked this post']}, 404
-    return {'errors': ['Post not found']}, 404
+    post = Post.query.get_or_404(id, description='Post not found')
+    like = PostLike.query.filter_by(user_id=current_user.id, post_id=id).first()
+    if not like:
+        return {'errors': ['You have not liked this post']}, 404
+    db.session.delete(like)
+    Post.query.filter(Post.id == id, Post.likes > 0).update(
+        {Post.likes: Post.likes - 1}, synchronize_session=False)
+    db.session.commit()
+    # Re-read so we return the NEW count (the old code returned the stale one).
+    db.session.refresh(post)
+    return {'postId': post.id, 'likes': post.likes}
 
 
 @post_routes.route('/<int:id>/comments')

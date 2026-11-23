@@ -5,8 +5,13 @@ from datetime import datetime
 class PostLike(db.Model):
     __tablename__ = 'post_likes'
 
+    # One like per user per post. The database rejects duplicates even if two
+    # requests race each other.
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'post_id', name='uq_post_likes_user_post'),
+    )
     if environment == "production":
-        __table_args__ = {'schema': SCHEMA}
+        __table_args__ = __table_args__ + ({'schema': SCHEMA},)
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey(add_prefix_for_prod('users.id')), nullable=False)
