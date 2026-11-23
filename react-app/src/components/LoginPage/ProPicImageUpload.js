@@ -24,7 +24,7 @@ function ProPicImageUpload({ setImage }) {
                 <input type='file' accept='image/jpeg,image/png,image/webp,image/gif' onChange={updateImage} />
             </div>
             {previewUrl && (
-                <img src={previewUrl} alt='Your profile picture preview' className='supp-prev-img' />
+                <img src={previewUrl} alt='Profile preview' className='supp-prev-img' />
             )}
         </div>
     )

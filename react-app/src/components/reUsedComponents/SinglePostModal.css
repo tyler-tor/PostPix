@@ -124,7 +124,7 @@
 }
 
 .right-hand-container-for-post-modal-comment-input button{
-  color: rgb(0, 149, 246);
+  color: var(--pp-accent);
   border: none;
   align-items: center;
   font-weight: bold;
@@ -211,7 +211,7 @@
   gap: 5px;
   height: 32px;
   width: 100px;
-  background-color: rgb(0, 149, 246);
+  background-color: var(--pp-accent);
   padding: 5px 9px;
   color: white;
   border: 1px solid transparent;

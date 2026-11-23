@@ -76,12 +76,17 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 
 - **P5:** used `Model.query.get_or_404()` (works on the current Flask-SQLAlchemy 2.5) instead of `db.get_or_404()` (Flask-SQLAlchemy 3). Switch in P14.
 - **P6:** kept the `posts.likes` counter (the plan's alternative option) but made it race-safe and recounted, instead of dropping the column; the new migration sits on top of the existing chain because P15 (migration reset) is Batch 2.
+- **P3:** the signup profile-picture upload had to move into the signup request (multipart) because `/api/img/upload` now requires login; not spelled out in the plan.
+- **P11:** the plan said "own logo, colors and login layout"; done as a text wordmark + accent colour + demo note + new favicon; the larger layout change is left to P32.
 
 ---
 
 ## Open questions for Tyler
 
 1. **Home feed (P10):** should your own posts appear in your home feed (Instagram does)? Currently only followed users' posts are shown, same as before. It's a one-line change.
+2. **Branding (P11):** OK with the teal "postpix" wordmark and accent, or do you have preferred colours/logo for P32?
+3. **Repo name:** rename the GitHub repo from `Instagram-Group-Project` to something like `postpix` (GitHub redirects old URLs)? Avoids the trademark name in your portfolio URL.
+4. **Deep links (found during P11):** refreshing `/explore` on the Flask-served build returns 404 (pre-existing). Fix in P31/P33, or earlier as a small separate change?
 
 ---
 
@@ -364,3 +369,52 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
   it to `select()` style. Pagination/infinite scroll is P22; indexes on
   `follows(follower_id)` and `posts(user_id, created_at)` are P21. Whether to include your
   own posts in the home feed is an open question below.
+
+## P11 — Distinct branding to avoid phishing flags
+- **Problem:** The site was flagged as phishing in Feb 2023 (several "fix phishing" commits
+  only changed the page title). The login page copied Instagram's look: a centered white
+  card with a script-style wordmark image positioned with Instagram's sprite offsets
+  (`background-position: 0px -554px`, with the original Instagram sprite URL still in a
+  comment), Instagram's button blue `rgb(0,149,246)`, Instagram's exact sign-up copy
+  ("Sign up to see photos and videos from your friends", "By signing up, you agree to our
+  Terms, Privacy Policy and Cookies Policy"), a phone screenshot image used by
+  Instagram's login page, an unused `Instagram_logo.png`, a favicon in Instagram's
+  pink/orange gradient colours, `alt="instagram"` / `alt="Instagram Post"`, and a
+  "Finstagram" credit. A login form that looks like Instagram's on an unrelated domain
+  is exactly what Google Safe Browsing flags, and it is a trademark problem.
+- **What changed:** New original **Postpix** identity: a text wordmark component
+  (`components/Brand/Wordmark.js`: a teal rounded "P" mark + lowercase "post**pix**", no
+  image, no third-party font) used in the nav bar, login card and sign-up modal. One teal
+  brand accent (`--pp-accent: #0f766e`, darker `#115e59`) defined as CSS variables in
+  `index.css` and used everywhere the Instagram blue was. Font stack changed from
+  `'proxima nova'` to a neutral stack (`--pp-font`). Login card gets a teal top border
+  and rounded corners, a tagline ("Share photos with friends.") and a visible
+  **portfolio-demo note** ("not affiliated with any other social network; don't reuse a
+  real password"). Sign-up copy rewritten in our own words with the same demo note. New
+  original favicon (teal square with a white "P", generated, multi-size `.ico`). Page
+  `<title>` is "Postpix" with a matching meta description and theme colour. Deleted
+  `Carousel.js`, `screenshot1-2x.png`, `Instagram_logo.png` and both old wordmark
+  images; post image alt text now uses the caption. Removed the "Finstagram" comment.
+- **Files:** `react-app/public/index.html`, `react-app/public/favicon.ico`,
+  `react-app/src/index.css`, new `react-app/src/components/Brand/Wordmark.js` and
+  `Brand.css`, `components/LoginPage/{index.js,LoginForm.js,SignUpForm.js,LoginPage.css,ProPicImageUpload.js}`,
+  `components/NavBar/index.js`, `components/HomeFeed/SideStuff.js`,
+  `components/reUsedComponents/SinglePostModal.{js,css}`,
+  `components/UserProfile/UserProfile.css`,
+  `components/NavBar/ImageUploadComponent/ImageUploadComponent.css`; deleted
+  `components/LoginPage/Carousel.js` and four images in `src/images/`.
+- **How to verify:** `cd react-app && npm install && npm run build` (on Node 17+ prefix
+  with `NODE_OPTIONS=--openssl-legacy-provider`, needed by react-scripts 4). Built
+  successfully in a scratch copy (only pre-existing lint warnings). `grep -ri instagram
+  react-app/build` finds nothing; served by Flask, `/` shows `<title>Postpix</title>` and
+  `/favicon.ico` is 200. Then visually: open the login page -> teal "postpix" wordmark,
+  teal buttons, demo note; nav bar shows the wordmark; Demo Login still works (also
+  verified over real HTTP with curl: CSRF-protected login, feed and like all 200).
+- **Things to watch / follow-ups:** I could not look at the page in a browser here, so
+  **please eyeball the login page, sign-up modal and nav bar** (wordmark size/spacing).
+  The layout is still a centered card (common to many sites); the full visual refresh is
+  P32. The repo name `Instagram-Group-Project` and the README title "Instagram Clone"
+  remain (README rewrite is P46; repo rename is an open question). Found but **not fixed**
+  (out of scope): refreshing a deep link like `/explore` on the Flask-served build returns
+  404, because Flask's static route catches it before the React catch-all; this was
+  already broken on `main` (fits P31/P33).

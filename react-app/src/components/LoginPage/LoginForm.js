@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { Redirect } from "react-router-dom";
 import { login } from "../../store/session";
-import logo from "../../images/text-1677259699931.png";
+import Wordmark from "../Brand/Wordmark";
 
 const LoginForm = () => {
   const [errors, setErrors] = useState([]);
@@ -37,9 +37,10 @@ const LoginForm = () => {
 
   return (
     <div className="login-form-and-other-stuff-container ">
-      <div className="logo-holder">
-      <img className="logo-wrapper" src={logo} alt="logo" />
-      </div>
+      <h1 className="logo-holder">
+        <Wordmark size="lg" />
+      </h1>
+      <p className="pp-tagline">Share photos with friends.</p>
       <form className="form-container" onSubmit={onLogin}>
         <div>
           {errors.map((error, ind) => (
@@ -76,6 +77,10 @@ const LoginForm = () => {
       <button className="form-default-submit-button demo" onClick={demoLogIn}>
         Demo Login
       </button>
+      <p className="pp-demo-note">
+        Postpix is a portfolio demo project. It is not affiliated with any
+        other social network. Please don't reuse a real password here.
+      </p>
     </div>
   );
 };

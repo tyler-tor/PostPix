@@ -12,7 +12,7 @@
 .upload-photo-container button{
   height: 32px;
   width: 100px;
-  background-color: rgb(0, 149, 246);
+  background-color: var(--pp-accent);
   padding: 5px 9px;
   margin: 10px 0px;
   color: white;

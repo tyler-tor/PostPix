@@ -1,4 +1,12 @@
-/* TODO Add site wide styles */
+/* Postpix design tokens (full visual refresh is planned in P32). */
+:root {
+  --pp-accent: #0f766e;       /* teal: Postpix's own brand colour */
+  --pp-accent-dark: #115e59;
+  --pp-ink: #1c1917;
+  --pp-muted: #6b7280;
+  --pp-font: "Avenir Next", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
 .post-settings-modal-container-new {
   display: flex;
   flex-direction: column;
@@ -21,7 +29,7 @@
  }
 
  * {
-  font-family: 'proxima nova', sans-serif;
+  font-family: var(--pp-font);
  }
 
 .post-form-wrapper {
@@ -63,7 +71,7 @@
 .post-form-children button {
   height: 32px;
   width: 266px;
-  background-color: rgb(0, 149, 246);
+  background-color: var(--pp-accent);
   padding: 5px 9px;
   margin: 10px 0px;
   color: white;
@@ -74,7 +82,7 @@
 .modal-delete-buttons {
   height: 32px;
   width: 266px;
-  background-color: rgb(0, 149, 246);
+  background-color: var(--pp-accent);
   padding: 5px 9px;
   margin: 10px 0px;
   color: white;
@@ -125,7 +133,7 @@
 .post-form-children button {
   height: 32px;
   width: 266px;
-  background-color: rgb(0, 149, 246);
+  background-color: var(--pp-accent);
   padding: 5px 9px;
   margin: 10px 0px;
   color: white;
@@ -136,7 +144,7 @@
 .modal-delete-buttons {
   height: 32px;
   width: 266px;
-  background-color: rgb(0, 149, 246);
+  background-color: var(--pp-accent);
   padding: 5px 9px;
   margin: 10px 0px;
   color: white;
@@ -187,7 +195,7 @@
 .post-form-children button {
   height: 32px;
   width: 266px;
-  background-color: rgb(0, 149, 246);
+  background-color: var(--pp-accent);
   padding: 5px 9px;
   margin: 10px 0px;
   color: white;
@@ -198,7 +206,7 @@
 .modal-delete-buttons {
   height: 32px;
   width: 266px;
-  background-color: rgb(0, 149, 246);
+  background-color: var(--pp-accent);
   padding: 5px 9px;
   margin: 10px 0px;
   color: white;

@@ -1,6 +1,5 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-// import pic from "../../images/screenshot1-2x.png";
 import { useSelector } from "react-redux";
 import SideNonFollowedUsers from "./SideNonFollowedUsers";
 import { AiFillGithub, AiFillLinkedin } from "react-icons/ai";
@@ -29,7 +28,7 @@ const SideStuff = () => {
       </NavLink>
       <div className="side-stuff-second-container">
         <div className="suggestions-for-you-styling secondary-gray-text">
-          {/* © 2022 Finstagram built by: */}
+          {/* Postpix built by: */}
           <div className="about-links-styling">
             Derek Torrero
             <div>

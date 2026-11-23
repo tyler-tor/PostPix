@@ -1,0 +1,48 @@
+/* Postpix brand: a teal accent and a plain geometric wordmark. */
+.pp-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--pp-font);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--pp-ink);
+  text-transform: lowercase;
+  user-select: none;
+}
+
+.pp-wordmark-accent {
+  color: var(--pp-accent);
+}
+
+.pp-wordmark-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background-color: var(--pp-accent);
+  color: white;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pp-wordmark-sm { font-size: 24px; }
+.pp-wordmark-sm .pp-wordmark-mark { width: 30px; height: 30px; font-size: 18px; }
+
+.pp-wordmark-lg { font-size: 40px; }
+.pp-wordmark-lg .pp-wordmark-mark { width: 48px; height: 48px; font-size: 30px; border-radius: 12px; }
+
+.pp-demo-note {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--pp-muted);
+  text-align: center;
+  padding: 0 24px 16px;
+}
+
+.pp-tagline {
+  font-size: 15px;
+  color: var(--pp-muted);
+  margin: -20px 0 20px;
+  text-align: center;
+}

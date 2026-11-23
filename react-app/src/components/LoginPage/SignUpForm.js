@@ -5,6 +5,7 @@ import { signUp } from "../../store/session";
 import { useHistory } from "react-router-dom";
 // import ImageUploadComponent from "../NavBar/ImageUploadComponent/ImageUploadComponent";
 import ProPicImageUpload from "./ProPicImageUpload";
+import Wordmark from "../Brand/Wordmark";
 
 const SignUpForm = () => {
   const [errors, setErrors] = useState([]);
@@ -69,9 +70,9 @@ const SignUpForm = () => {
 
   return (
     <div className="sign-up-container">
-      <div className="logo-holder sign-up-logo"></div>
+      <div className="logo-holder sign-up-logo"><Wordmark size="lg" /></div>
         <h2 className="sign-up-form-header-text">
-          Sign up to see photos and videos from your friends.
+          Create your Postpix account.
         </h2>
         <h3>Optional profile picture:</h3>
           <ProPicImageUpload setImage={setImage} />
@@ -142,12 +143,10 @@ const SignUpForm = () => {
             required={true}
           ></input>
         </div>
-        <h3 className="sign-up-form-policy-text">
-          <strong></strong>
-          By signing up, you agree to our{" "}
-          <strong> Terms, Privacy Policy </strong> and{" "}
-          <strong>Cookies Policy</strong>.
-        </h3>
+        <p className="sign-up-form-policy-text">
+          Postpix is a portfolio demo. Use a made-up email and a password you
+          don't use anywhere else.
+        </p>
         <button className="form-default-submit-button" type="submit">
           Sign Up
         </button>

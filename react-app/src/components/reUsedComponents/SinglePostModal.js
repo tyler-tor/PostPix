@@ -136,7 +136,7 @@ const SinglePostModal = ({ post }) => {
         <Modal onClose={() => setShowModal(false)}>
           <div className="post-modal-container">
             <div className="post-modal-image-wrapper">
-              <img src={post.imgUrl} alt="Instagram Post" />
+              <img src={post.imgUrl} alt={post.caption || `Post by ${post.users.username}`} />
             </div>
             <div className="post-modal-content-container">
               <div className="post-modal-username-picture-row">

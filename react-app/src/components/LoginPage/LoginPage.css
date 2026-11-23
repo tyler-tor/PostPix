@@ -21,20 +21,16 @@
   width: 100%;
   align-items: center;
   border: 1px solid rgb(219, 219, 219);
+  border-top: 4px solid var(--pp-accent);
+  border-radius: 12px;
   background-color: white;
   margin-bottom: 10px;
 }
 
 .logo-holder {
-  /* background-image: url("https://static.cdninstagram.com/rsrc.php/v3/yi/r/ZFtnMBJnHU_.png"); */
-  background-image: url("../../images/text-1677259699931.png");
-  background-position: 0px -554px;
-  background-size: auto;
-  width: 175px;
-  height: 51px;
+  display: flex;
+  justify-content: center;
   margin: 36px 0px;
-  background-repeat: no-repeat;
-  display: inline-block;
 }
 
 .form-container {
@@ -59,7 +55,7 @@
 .upload-img-btn {
   height: 32px;
   width: 266px;
-  background-color: rgb(0, 149, 246);
+  background-color: var(--pp-accent);
   padding: 5px 9px;
   margin: 10px 0px;
   color: white;
@@ -76,7 +72,7 @@
 }
 
 .demo {
-  background-color: #0057a3;
+  background-color: var(--pp-accent-dark);
   margin: 40px;
 }
 
@@ -96,24 +92,8 @@
 }
 
 .sign-up-modal-text {
-  color: rgb(0, 149, 246);
+  color: var(--pp-accent);
   text-decoration: double;
-}
-
-.login-page-left-side-container {
-  height: 581.141px;
-  width: 380.312px;
-  display: flex;
-  justify-content: flex-end;
-  margin-right: 32px;
-  margin-bottom: 12px;
-}
-
-.carousel-container {
-  display: flex;
-  justify-content: flex-end;
-  height: 536.836px;
-  width: 250px;
 }
 
 .sign-up-logo{
