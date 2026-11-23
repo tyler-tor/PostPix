@@ -10,77 +10,78 @@ def recount_post_likes():
     ))
     db.session.commit()
 
-def seed_post_likes():
+def seed_post_likes(users, posts):
+    """users/posts: {seed number: row} from seed_users()/seed_posts()."""
     postlike1 = PostLike(
-        user_id=1,
-        post_id=3
+        user_id=users[1].id,
+        post_id=posts[3].id
     )
     postlike2 = PostLike(
-        user_id=2,
-        post_id=1
+        user_id=users[2].id,
+        post_id=posts[1].id
     )
     postlike3 = PostLike(
-        user_id=3,
-        post_id=2
+        user_id=users[3].id,
+        post_id=posts[2].id
     )
 
     postlike4 = PostLike(
-        user_id=4,
-        post_id=6
+        user_id=users[4].id,
+        post_id=posts[6].id
     )
     postlike5 = PostLike(
-        user_id=4,
-        post_id=15
+        user_id=users[4].id,
+        post_id=posts[15].id
     )
     postlike6 = PostLike(
-        user_id=4,
-        post_id=16
+        user_id=users[4].id,
+        post_id=posts[16].id
     )
     postlike7 = PostLike(
-        user_id=5,
-        post_id=16
+        user_id=users[5].id,
+        post_id=posts[16].id
     )
     postlike8 = PostLike(
-        user_id=6,
-        post_id=16
+        user_id=users[6].id,
+        post_id=posts[16].id
     )
     postlike9 = PostLike(
-        user_id=8,
-        post_id=16
+        user_id=users[8].id,
+        post_id=posts[16].id
     )
 
     postlike10 = PostLike(
-        user_id=7,
-        post_id=21
+        user_id=users[7].id,
+        post_id=posts[21].id
     )
     postlike11 = PostLike(
-        user_id=8,
-        post_id=21
+        user_id=users[8].id,
+        post_id=posts[21].id
     )
 
     postlike12 = PostLike(
-        user_id=10,
-        post_id=6
+        user_id=users[10].id,
+        post_id=posts[6].id
     )
     postlike13 = PostLike(
-        user_id=10,
-        post_id=4
+        user_id=users[10].id,
+        post_id=posts[4].id
     )
     postlike14 = PostLike(
-        user_id=1,
-        post_id=4
+        user_id=users[1].id,
+        post_id=posts[4].id
     )
     postlike15 = PostLike(
-        user_id=2,
-        post_id=4
+        user_id=users[2].id,
+        post_id=posts[4].id
     )
     postlike16 = PostLike(
-        user_id=3,
-        post_id=7
+        user_id=users[3].id,
+        post_id=posts[7].id
     )
     postlike17 = PostLike(
-        user_id=8,
-        post_id=7
+        user_id=users[8].id,
+        post_id=posts[7].id
     )
 
 
@@ -106,7 +107,3 @@ def seed_post_likes():
     db.session.commit()
     recount_post_likes()
 
-
-def undo_post_likes():
-    db.session.execute('DELETE FROM post_likes;')
-    db.session.commit()

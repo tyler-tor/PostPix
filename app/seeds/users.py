@@ -81,19 +81,8 @@ def seed_users():
 
 
     db.session.commit()
-
-
-
-
-
-
-# Uses a raw SQL query to TRUNCATE the users table.
-# SQLAlchemy doesn't have a built in function to do this
-# TRUNCATE Removes all the data from the table, and RESET IDENTITY
-# resets the auto incrementing primary key, CASCADE deletes any
-# dependent entities
-def undo_users():
-    db.session.execute('DELETE FROM users;')
-
-    db.session.execute('DELETE FROM follows;') #added this to also clear out the follows table when unseeding.
-    db.session.commit()
+    # Seed number (#1, #2, ...) -> User, so other seed files can refer to
+    # users without assuming database ids start at 1.
+    return {n: user for n, user in enumerate([
+        demo, marnie, bobbie, theo, derek, alan, gabe, grace, wilson, chris,
+        matt, taylor, jane, danielle, ronald], start=1)}

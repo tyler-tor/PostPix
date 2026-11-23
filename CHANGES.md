@@ -5,7 +5,8 @@ numbering from `MODERNIZATION_PLAN.md` (P1-P48). Each section says what was wron
 changed, which files, how to check it yourself, and what to watch out for.
 
 Batch 1 = security and bug fixes (P2-P11) on the **current** stack (Flask 2.0 /
-SQLAlchemy 1.4 / Create React App). Stack upgrades are Batch 2.
+SQLAlchemy 1.4 / Create React App). Batch 2 = safe seeding (P0) and the stack upgrades
+(P12-P19); see "Batch 2 items" below.
 
 ---
 
@@ -418,3 +419,62 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
   (out of scope): refreshing a deep link like `/explore` on the Flask-served build returns
   404, because Flask's static route catches it before the React catch-all; this was
   already broken on `main` (fits P31/P33).
+
+---
+
+# Batch 2 items (modern stack)
+
+Batch 2 = P0 (new: safe seeding) and the stack upgrades P12-P19 (app factory, Python
+3.12, current Flask/SQLAlchemy, clean migrations, Vite, React 19, react-router 7, Redux
+Toolkit).
+
+## P0 — Safe seeding (new item, not in the original plan)
+- **Problem:** `.github/workflows/main.yml` (the old Heroku deploy) ran `flask seed undo`
+  and then `flask seed all` on **every push to `main`**, which wiped every real user,
+  post, comment and like and replaced them with demo data. On top of that, `flask seed all`
+  itself ran `TRUNCATE ... RESTART IDENTITY CASCADE` on every table when
+  `FLASK_ENV=production`. Any deploy = total data loss. The seed files also hard-coded
+  database ids (`user_id=4`, `post_id=12`), which only work if ids start at 1.
+- **What changed:**
+  - Deleted the obsolete Heroku workflow `.github/workflows/main.yml` (Heroku is gone;
+    Batch 4 / P39 adds the AWS pipeline).
+  - `flask seed all` now **only seeds an empty database** (no users). If there is any
+    user it prints `Database already has data. Skipping seed.` and exits successfully.
+  - New `flask seed all --reset`: deletes all data child-to-parent (likes, comments,
+    follows, posts, users) and then seeds. **Refuses in production** with a
+    `click.ClickException` (exit code 1).
+  - `flask seed undo` deletes all data the same way and also **refuses in production**.
+  - Removed the `TRUNCATE` blocks and the per-file `undo_*` functions (one central
+    `_delete_all()` with SQLAlchemy `delete()` statements, no raw SQL strings).
+  - Removed hard-coded ids: `seed_users()` returns `{seed number: User}` and
+    `seed_posts(users)` returns `{seed number: Post}`; comments/likes use
+    `users[4].id` / `posts[12].id`. The seed numbers are the `#1`..`#15` comments next
+    to each user and `post1`..`post50`. Same demo data as before, but it works whatever
+    ids the database hands out. Removed a leftover `likes = 1` on post 15 (the counter is
+    recounted from real likes anyway).
+- **Deploy rules (read this before any deploy):**
+  1. A deploy runs `flask db upgrade && flask seed all`. This is safe every time: on an
+     empty database it creates the demo data, on a database with data it does nothing.
+  2. `flask seed all --reset` and `flask seed undo` are **local only** (they refuse when
+     `FLASK_ENV=production`).
+  3. **Never run `docker compose down -v`** against production: `-v` deletes the Postgres
+     volume, i.e. the whole database. Plain `docker compose down` is fine.
+  4. **Back up the database before every production migration** (`pg_dump`, see P40).
+- **Tyler action:** on GitHub, repo -> Settings -> Secrets and variables -> Actions,
+  **delete the `HEROKU_API_KEY` and `HEROKU_APP_NAME` secrets**. Nothing uses them now.
+- **Files:** deleted `.github/workflows/main.yml`; `app/seeds/__init__.py`,
+  `app/seeds/users.py`, `app/seeds/posts.py`, `app/seeds/comments.py`,
+  `app/seeds/postLikes.py`.
+- **How to verify:** on a fresh SQLite DB: `flask db upgrade && flask seed all` ->
+  "Seeded demo data." (15 users, 50 posts, 80 comments, 17 likes, 61 follows); run
+  `flask seed all` again -> "Database already has data. Skipping seed."; `flask seed all
+  --reset` -> deletes and reseeds; `FLASK_ENV=production flask seed all --reset` and
+  `FLASK_ENV=production flask seed undo` -> `Error: ... disabled in production`, exit
+  code 1. A test script inserted a user with id 100 first and seeded: demo got id 101 and
+  every post/comment/like still pointed to the right user and post (4/4). All Batch 1
+  test-client scripts re-run green (85/85).
+- **Things to watch:** to refresh the demo data locally use `flask seed all --reset`
+  (the old `flask seed undo && flask seed all` still works locally). Because ids are no
+  longer reset, on Postgres a reset gives new, higher ids; any bookmarked URL like
+  `/posts/5` may point elsewhere afterwards (local only). `app/seeds/follows.py` (dead,
+  commented model) is removed in P15.
