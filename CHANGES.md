@@ -13,31 +13,42 @@ SQLAlchemy 1.4 / Create React App). Stack upgrades are Batch 2.
 
 A real AWS access key (ID starts with `AKIA`), its secret, and a Flask `SECRET_KEY` were
 committed in a `.env` file in early Nov 2022 (deleted a couple of days later). Deleting a
-file does **not** remove it from git history, and the GitHub repo is public. Nothing in this
-branch can fix that from code; it needs these manual steps.
+file does **not** remove it from git history, and the GitHub repo is public.
 
-1. **Find whose key it is.** Run `git log --all --diff-filter=A --name-only -- .env` to see
-   the commit(s); open one with `git show <hash>:.env` **on your own machine only** and look
-   at the access key ID (do not paste it anywhere public). Sign in to the AWS account that
-   owned the bucket (`S3_BUCKET` value). If it was a teammate's or App Academy's account,
-   tell them so they can do steps 2-4.
-2. **Deactivate, then delete the key.** AWS console -> IAM -> Users -> (the user) ->
-   Security credentials -> Access keys -> find the key ID -> **Deactivate** -> confirm the
-   app still works without it (it should; this branch does not need it) -> **Delete**.
-   If the key no longer appears, it was already deleted (that is fine; say so in the
-   open questions).
-3. **Check for misuse.** CloudTrail -> Event history, filter by "Access key" = the old key
-   ID, look back as far as allowed (90 days). Also check Billing -> Bills for unexpected
-   services/regions (EC2 in odd regions is the classic sign of a stolen key). If you see
-   anything odd, open an AWS Support case; they often waive charges from leaked keys.
-4. **Make a new key only if you need one.** The plan (P37) moves to an EC2 IAM role so the
-   app needs **no** access keys at all. Until then, if you need uploads locally, create a
-   new key for an IAM user that only has `s3:PutObject` on your own bucket, put it in your
-   local `.env` (which is git-ignored), and never commit it.
+**Whose key is it?** Not Tyler's. The key belongs to the **original teammate's** AWS
+account (the project started as a teammate's repo), and Tyler no longer has any old AWS
+account. So Tyler cannot deactivate it himself; only the key owner can. Nothing in this
+branch can fix it from code either.
+
+1. **Identify the key (privately).** On your own machine run
+   `git log --all --diff-filter=A --name-only -- .env` to find the commit, then
+   `git show <hash>:.env | grep S3_KEY` to see the access key **ID** (the `AKIA...` part,
+   not the secret). Do not paste the secret anywhere; the ID alone is enough for the owner
+   to find it.
+2. **Notify the original key owner (teammate).** Send a short private message (not a
+   public GitHub issue), for example: "The Postpix/Instagram clone repo is public and an old
+   `.env` in its git history contains your AWS access key `AKIA...<last 4 chars>` and
+   the S3 secret. Please go to AWS console -> IAM -> Users -> Security credentials ->
+   Access keys, **deactivate and delete** that key, and check CloudTrail and Billing for
+   unexpected use (unknown EC2 instances/regions). AWS Support often waives charges from
+   leaked keys." If the key no longer appears in their account, it was already deleted;
+   ask them to confirm.
+3. **If you cannot reach them, report it.** Options: (a) GitHub: if secret scanning /
+   push protection is enabled on the repo (Settings -> Code security), GitHub flags
+   `AKIA` keys and also notifies AWS automatically through its secret-scanning partner
+   program; enable it on your repo so the leak is reported. (b) AWS: report the exposed
+   key through AWS's abuse/security contact (aws.amazon.com/security -> "Report a
+   security issue / vulnerability"); AWS can quarantine an exposed key on the owner's
+   account. Write down whom you notified and when (useful if asked in an interview).
+4. **Brand-new AWS account for Batch 4.** Tyler is creating a new AWS account. The plan
+   (P37) uses an EC2 IAM role there, so the app needs **no** access keys at all. Until
+   then, if you need uploads locally, create a key for an IAM user that only has
+   `s3:PutObject` on your own bucket, keep it in your local `.env` (git-ignored), never commit it.
+   Turn on MFA for the new account's root user and set a billing alarm on day one.
 5. **New Flask SECRET_KEY.** Generate one with
    `python -c "import secrets; print(secrets.token_hex(32))"` and put it in `.env` /
    the server's environment. The old one is public, so anyone could forge session cookies
-   for any deployment that still uses it.
+   for any deployment that still uses it. Never reuse it.
 6. **GitHub repo secrets.** Repo -> Settings -> Secrets and variables -> Actions: delete
    `HEROKU_API_KEY` / `HEROKU_APP_NAME` (Heroku deploy is dead; see P39).
 
@@ -45,7 +56,7 @@ branch can fix that from code; it needs these manual steps.
 years. Bots scrape GitHub for `AKIA...` strings within minutes, and anyone who forked or
 cloned the repo still has the old history. Rewriting history cannot "un-leak" it; it only
 hides it from people browsing later. A deactivated key is useless no matter who has a copy.
-So: rotate first (required), rewrite history second (optional, cosmetic/reputation).
+So: get the key deactivated first (required), rewrite history second (optional, cosmetic).
 
 **If you want to rewrite history later (optional, destructive):**
 1. Make a full backup: `git clone --mirror <repo-url> postpix-backup.git`.
@@ -54,8 +65,9 @@ So: rotate first (required), rewrite history second (optional, cosmetic/reputati
    (removes those files from every commit; every commit hash changes).
 4. Re-add the remote (filter-repo removes it): `git remote add origin <repo-url>`.
 5. Force-push all branches and tags: `git push --force --all && git push --force --tags`.
-6. Ask GitHub Support to purge cached views of old commits if needed; teammates must
-   re-clone (their old clones still contain the key - another reason rotation is the real fix).
+6. Ask GitHub Support to purge cached views of old commits if needed; other clones must
+   re-clone (old clones and forks still contain the key - another reason the owner's
+   deactivation is the real fix).
 Do this only after the `modernize` branch is merged or rebased, because it rewrites it too.
 
 ---
