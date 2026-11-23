@@ -50,7 +50,6 @@ def get_post_by_id(id):
 @login_required
 def create_post():
     form = CreatePost()
-    form['csrf_token'].data = request.cookies['csrf_token']
 
     if form.validate_on_submit():
         post = Post(
@@ -77,7 +76,6 @@ def create_post():
 @login_required
 def update_post(id):
     form = UpdatePost()
-    form['csrf_token'].data = request.cookies['csrf_token']
     post = Post.query.get(id)
     if not post:
         return {'errors': ['Post not found']}, 404
@@ -211,7 +209,6 @@ def create_comment_post(id):
     user = User.query.get(current_user.id)
     form = CreateComment()
     user = user.to_dict()
-    form['csrf_token'].data = request.cookies['csrf_token']
     if form.validate_on_submit():
         comment = Comment(
             user_id=current_user.id,

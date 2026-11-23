@@ -1,3 +1,4 @@
+import apiFetch from "../utils/apiFetch";
 //* For getting all users who liked a post.
 
 
@@ -13,7 +14,7 @@ const getLikeUserAction = (users) => ({
 });
 
 export const getLikesUser = (postId) => async dispatch =>{
-    const response = await fetch(`/api/posts/${postId}/likes/users`)
+    const response = await apiFetch(`/api/posts/${postId}/likes/users`)
     if(response.ok){
         const data = await response.json()
         // console.log(data.user[0]);

@@ -2,7 +2,7 @@ import os
 from flask import Flask, render_template, request, session, redirect
 from flask_cors import CORS
 from flask_migrate import Migrate
-from flask_wtf.csrf import CSRFProtect, generate_csrf
+from flask_wtf.csrf import CSRFProtect, CSRFError, generate_csrf
 from flask_login import LoginManager
 
 from .models import db, User
@@ -45,6 +45,14 @@ Migrate(app, db)
 
 # Application Security
 CORS(app)
+# Check a CSRF token on every POST/PUT/PATCH/DELETE (not just routes that use a
+# WTForm). The frontend sends the token in the X-CSRFToken header (apiFetch.js).
+csrf = CSRFProtect(app)
+
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    return {'errors': [f'CSRF check failed: {e.description}']}, 400
 
 
 
@@ -71,7 +79,10 @@ def inject_csrf_token(response):
         secure=True if os.environ.get('FLASK_ENV') == 'production' else False,
         samesite='Strict' if os.environ.get(
             'FLASK_ENV') == 'production' else None,
-        httponly=True)
+        # Must be readable by JavaScript so apiFetch can copy it into the
+        # X-CSRFToken header. The token alone is not a secret: an attacker's
+        # site cannot read our cookies, which is what makes this safe.
+        httponly=False)
     return response
 
 

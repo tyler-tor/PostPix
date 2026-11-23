@@ -1,3 +1,4 @@
+import apiFetch from "../utils/apiFetch";
 const GET_FOLLOWERS = 'following/GET_FOLLOWERS'
 
 const getFollowers = (followers) => ({
@@ -7,7 +8,7 @@ const getFollowers = (followers) => ({
 
 
 export const getAllFollowers = (id) => async (dispatch) => {
-    const response = await fetch(`/api/users/${id}/followers`)
+    const response = await apiFetch(`/api/users/${id}/followers`)
 
     if(response.ok){
         const data = await response.json();

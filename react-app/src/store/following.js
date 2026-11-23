@@ -1,6 +1,7 @@
 import { useSelector } from "react-redux";
 import { getAllFollowers } from "./follower";
 import { getProfileUser } from "./profileUser";
+import apiFetch from "../utils/apiFetch";
 
 const GET_FOLLOWING = 'following/GET_FOLLOWING'
 // const GET_FOLLOWERS = 'following/GET_FOLLOWERS'
@@ -28,7 +29,7 @@ const deleteFollowingAction = (id) => ({
 });
 
 export const deleteFollowing = (id) => async(dispatch) => {
-    const response = await fetch(`/api/users/${id}/follow`, {
+    const response = await apiFetch(`/api/users/${id}/follow`, {
         method: 'DELETE'
     })
 
@@ -43,7 +44,7 @@ export const deleteFollowing = (id) => async(dispatch) => {
 }
 
 export const addFollowing = (id) => async(dispatch) => {
-    const response = await fetch(`/api/users/${id}/follow`, {
+    const response = await apiFetch(`/api/users/${id}/follow`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -61,7 +62,7 @@ export const addFollowing = (id) => async(dispatch) => {
 }
 
 export const getAllFollowing = (id) => async (dispatch) => {
-    const response = await fetch(`/api/users/${id}/following`)
+    const response = await apiFetch(`/api/users/${id}/following`)
 
     if(response.ok){
         const data = await response.json();
@@ -72,7 +73,7 @@ export const getAllFollowing = (id) => async (dispatch) => {
 }
 
 // export const getAllFollowers = (id) => async (dispatch) => {
-//     const response = await fetch(`/api/users/${id}/followers`)
+//     const response = await apiFetch(`/api/users/${id}/followers`)
 
 //     if(response.ok){
 //         const data = await response.json();

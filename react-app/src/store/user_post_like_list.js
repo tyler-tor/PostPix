@@ -1,6 +1,7 @@
 //* For getting a user liked post's ids
 
 import { getCurrentPost } from "./currentPost"
+import apiFetch from "../utils/apiFetch";
 
 
 
@@ -26,7 +27,7 @@ const deleteUserLikedPostIdAction = (id) =>({
 //TODO need to make delete like thunk action. can probly just update list instead of removing since response returns updated list.
 export const deleteUserLikedPostId = (postId) => async (dispatch) =>{
     // console.log('THUNK POST ID IN DELETE------------------------------------------------',postId);
-    const response = await fetch(`/api/posts/${postId}/likes`,{
+    const response = await apiFetch(`/api/posts/${postId}/likes`,{
         method: 'DELETE'
     })
     if(response.ok){
@@ -41,7 +42,7 @@ export const deleteUserLikedPostId = (postId) => async (dispatch) =>{
 }
 
 export const getUserLikedPostId = () => async (dispatch) =>{
-    const response = await fetch('/api/users/likes')
+    const response = await apiFetch('/api/users/likes')
     if(response.ok){
         const data = await response.json()
         // console.log(data.likes);
@@ -53,7 +54,7 @@ export const getUserLikedPostId = () => async (dispatch) =>{
 }
 
 export const addUserLikedPostId = (postId) => async (dispatch) =>{
-    const response = await fetch(`/api/posts/${postId}/likes`,{
+    const response = await apiFetch(`/api/posts/${postId}/likes`,{
         method: 'POST',
         headers: {'Content-Type' : 'application/json'},
     })

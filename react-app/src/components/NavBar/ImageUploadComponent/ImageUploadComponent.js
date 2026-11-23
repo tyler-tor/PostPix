@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 // import { useHistory } from "react-router-dom";
 import "./ImageUploadComponent.css";
+import apiFetch from "../../../utils/apiFetch";
 //!pass in a setValue from postForm to get the image url.
 const ImageUploadComponent = ({ setUrl }) => {
   // const history = useHistory(); // so that we can redirect after the image upload is successful
@@ -19,7 +20,7 @@ const ImageUploadComponent = ({ setUrl }) => {
     setImageLoading(true);
 
     formData.append("image", image);
-    const res = await fetch("/api/img/upload", {
+    const res = await apiFetch("/api/img/upload", {
       method: "POST",
       body: formData,
     });

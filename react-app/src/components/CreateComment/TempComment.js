@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import apiFetch from "../../utils/apiFetch";
 
 const TempComment = () => {
     const user = useSelector(state => state.session.user);
@@ -8,7 +9,7 @@ const TempComment = () => {
 
     const onSubComment = async (e) => {
         e.preventDefault();
-        // const response = await fetch(`/api/posts/1/comments`, {
+        // const response = await apiFetch(`/api/posts/1/comments`, {
         //     method: 'POST',
         //     headers: {
         //       'Content-Type': 'application/json'
@@ -24,7 +25,7 @@ const TempComment = () => {
         //     console.log(data)
         // }
         // -------------------------update--------------------------------
-        const response = await fetch('/api/comments/4', {
+        const response = await apiFetch('/api/comments/4', {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'
@@ -38,7 +39,7 @@ const TempComment = () => {
             // console.log(data)
         }
         // -------------------------delete-----------------------------------------------
-        // const response = await fetch('/api/comments/4', {
+        // const response = await apiFetch('/api/comments/4', {
         //     method: 'DELETE',
         //     headers: {
         //         'Content-Type': 'application/json'

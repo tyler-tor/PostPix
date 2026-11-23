@@ -1,3 +1,4 @@
+import apiFetch from "../utils/apiFetch";
 const GET_USERS = 'users/GET_USERS'
 
 const getUsers = (users) => ({
@@ -6,7 +7,7 @@ const getUsers = (users) => ({
 })
 
 export const getAllUsers = () => async (dispatch) => {
-    const response = await fetch('/api/users/')
+    const response = await apiFetch('/api/users/')
 
     if (response.ok) {
         const data = await response.json();

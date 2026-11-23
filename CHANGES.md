@@ -134,3 +134,36 @@ _None yet._
   returns a 400 "upload failed" error (signup without a picture works). Logged-out API
   calls get a 302 redirect to the 401 endpoint (Flask-Login default); P5 makes them a
   direct JSON 401. P42 should turn these checks into pytest tests.
+
+## P4 — Turn CSRF protection on properly
+- **Problem:** `CSRFProtect` was imported but never switched on. Only routes that used a
+  WTForm checked a token, and they did it by copying the `csrf_token` **cookie** into the
+  form on the server (`form['csrf_token'].data = request.cookies['csrf_token']`). That
+  defeats the point: a malicious site that makes your browser send a request also makes it
+  send the cookie, so the "check" always passes. Routes without a form (like/unlike,
+  follow/unfollow, delete post, delete account) had no check at all, so another site could
+  trigger them for a logged-in visitor (CSRF). A request with no cookie crashed with a 500
+  (`KeyError`). Logout was a `GET`, so any `<img src="/api/auth/logout">` logged you out.
+- **What changed:** `CSRFProtect(app)` now checks every POST/PUT/PATCH/DELETE. The
+  `csrf_token` cookie is now readable by JavaScript (`httponly=False`; the token is not a
+  secret by itself), and a new `react-app/src/utils/apiFetch.js` wrapper copies it into
+  an `X-CSRFToken` header on every non-GET request. All `fetch(` calls in the stores and
+  components now use `apiFetch(`. The cookie-copy lines were removed. A failed check now
+  returns `400 {"errors": ["CSRF check failed: ..."]}` (JSON) instead of an HTML page or
+  a 500. Logout is now `POST /api/auth/logout`.
+- **Files:** `app/__init__.py`, `app/api/auth_routes.py`, `app/api/post_routes.py`,
+  `app/api/comment_routes.py`, new `react-app/src/utils/apiFetch.js`, all
+  `react-app/src/store/*.js` that call the API, `components/User.js`,
+  `components/UsersList.js`, `components/NavBar/ImageUploadComponent/ImageUploadComponent.js`,
+  and the unused `Temp*` dev components.
+- **How to verify:** `curl -i -X POST localhost:5000/api/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@aa.io","password":"password"}'`
+  -> **400** CSRF error (no token). In the browser, the login form still works; DevTools ->
+  Network shows an `X-CSRFToken` request header on POST/PUT/DELETE. Liking a post without
+  the header -> 400. Test-client script: 9/9 checks (login with/without/bad token, like
+  without token, create post with token, logout via POST).
+- **Things to watch / follow-ups:** Any new frontend call must use `apiFetch`, not raw
+  `fetch`, or writes will fail with 400. The token expires after 1 hour by default but the
+  cookie is refreshed on every response, so normal use is fine; a tab left open overnight
+  needs one page load. `curl` testing now needs the cookie and header: first
+  `curl -c jar localhost:5000/api/auth/`, then send `-b jar -H "X-CSRFToken: <cookie value>"`.
+  SameSite is still `Strict` in production / unset in dev; P9 changes it to `Lax`.

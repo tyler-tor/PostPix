@@ -4,6 +4,7 @@ import { getAllFollowing } from "./following";
 import { getAllFollowers } from "./follower";
 import { getProfileFollowing } from "./profile_following_store";
 import { getProfileUser } from "./profileUser";
+import apiFetch from "../utils/apiFetch";
 const GET_POSTS = "posts/GET_POSTS";
 // const GET_FOLLOWING_POSTS = 'following/GET_FOLLOWING_POSTS'
 const ADD_POST = "posts/ADD_POST";
@@ -38,7 +39,7 @@ const deletePostAction = (id) =>({
 })
 
 export const deletePost = (id) => async (dispatch) =>{
-  const response = await fetch(`/api/posts/${id}`,{
+  const response = await apiFetch(`/api/posts/${id}`,{
     method:'DELETE'
   })
   if(response.ok){
@@ -51,7 +52,7 @@ export const deletePost = (id) => async (dispatch) =>{
 }
 
 export const updatePost = (caption) => async (dispatch) =>{
-  const response = await fetch(`/api/posts/${caption.id}`, {
+  const response = await apiFetch(`/api/posts/${caption.id}`, {
     method: 'PUT',
     headers: {'Content-Type' : 'application/json'},
     body: JSON.stringify({
@@ -79,7 +80,7 @@ export const updatePost = (caption) => async (dispatch) =>{
 
 export const addPost = (post) => async (dispatch) =>{
   // console.log('IN THUNK ACTION FOR POST', post);
-  const response = await fetch('/api/posts/',{
+  const response = await apiFetch('/api/posts/',{
     method: 'POST',
     headers: {'Content-Type' : 'application/json'},
     body: JSON.stringify({
@@ -113,7 +114,7 @@ export const addPost = (post) => async (dispatch) =>{
 }
 
 // export const getAllFollowingPosts = () => async (dispatch) => {
-//   const response = await fetch("/api/me/following/posts");
+//   const response = await apiFetch("/api/me/following/posts");
 
 //   if (response.ok) {
 //       const data = await response.json();
@@ -124,7 +125,7 @@ export const addPost = (post) => async (dispatch) =>{
 // }
 
 export const getAllPosts = () => async (dispatch) => {
-  const response = await fetch("/api/posts/");
+  const response = await apiFetch("/api/posts/");
 
   if (response.ok) {
     const data = await response.json();

@@ -1,3 +1,4 @@
+import apiFetch from "../utils/apiFetch";
 const GET_NON_FOLLOWING = 'following/GET_NON_FOLLOWING'
 
 
@@ -8,7 +9,7 @@ const getNonFollowingAction = (nonFollowing) => ({
 
 
 export const getNonFollowing = (id) => async(dispatch) => {
-    const response = await fetch(`/api/users/${id}/notfollowing`)
+    const response = await apiFetch(`/api/users/${id}/notfollowing`)
     // console.log('response', response)
     if(response.ok){
         const data = await response.json();

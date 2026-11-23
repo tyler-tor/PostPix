@@ -1,3 +1,4 @@
+import apiFetch from "../utils/apiFetch";
 const GET_COMMENTS = "comments/GET_COMMENTS";
 const POST_COMMENT = "comments/ADD_COMMENT";
 const UPDATE_COMMENT = "comments/UPDATE_COMMENT";
@@ -30,7 +31,7 @@ export const clearCommentsAction = () =>({
 
 export const postComment = (comment) => async (dispatch) => {
   const { postId, body } = comment;
-  const response = await fetch(`/api/posts/${postId}/comments`, {
+  const response = await apiFetch(`/api/posts/${postId}/comments`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -59,7 +60,7 @@ export const postComment = (comment) => async (dispatch) => {
 
 export const updateComment = (payload) => async (dispatch) => {
   const { commentId, body } = payload;
-  const response = await fetch(`api/comments/${commentId}`, {
+  const response = await apiFetch(`api/comments/${commentId}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -94,7 +95,7 @@ export const updateComment = (payload) => async (dispatch) => {
 };
 
 export const deleteComment = (commentId) => async (dispatch) => {
-  const response = await fetch(`api/comments/${commentId}`, {
+  const response = await apiFetch(`api/comments/${commentId}`, {
     method: "DELETE",
   });
   // console.log(response);
@@ -108,7 +109,7 @@ export const deleteComment = (commentId) => async (dispatch) => {
 /////// Newly Added///
 
 export const getAllComments = (id) => async (dispatch) => {
-  const response = await fetch(`/api/posts/${id}/comments`);
+  const response = await apiFetch(`/api/posts/${id}/comments`);
 
   if (response.ok) {
     const data = await response.json();

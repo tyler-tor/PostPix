@@ -23,7 +23,6 @@ def validation_errors_to_error_messages(validation_errors):
 @login_required
 def update_comment(id):
     form = UpdateComment()
-    form['csrf_token'].data = request.cookies['csrf_token']
     comment = Comment.query.get(id)
     if not comment:
         return {'errors': ['Comment not found']}, 404

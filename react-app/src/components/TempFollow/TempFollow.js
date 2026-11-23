@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
+import apiFetch from "../../utils/apiFetch";
 
 const TempFollow = () => {
   const user = useSelector((state) => state.session.user);
@@ -9,7 +10,7 @@ const TempFollow = () => {
 
   const onSubFollow = async (e) => {
     e.preventDefault();
-    const response = await fetch(`/api/users/${followingId}/follow`, {
+    const response = await apiFetch(`/api/users/${followingId}/follow`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -22,7 +23,7 @@ const TempFollow = () => {
   };
   const onSubUnFollow = async (e) => {
     e.preventDefault();
-    const response = await fetch(`/api/users/${unFollowingId}/follow`, {
+    const response = await apiFetch(`/api/users/${unFollowingId}/follow`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",

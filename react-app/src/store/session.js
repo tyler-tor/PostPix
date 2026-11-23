@@ -1,3 +1,4 @@
+import apiFetch from "../utils/apiFetch";
 // constants
 const SET_USER = "session/SET_USER";
 const REMOVE_USER = "session/REMOVE_USER";
@@ -15,7 +16,7 @@ const removeUser = () => ({
 const initialState = { user: null };
 
 export const authenticate = () => async (dispatch) => {
-  const response = await fetch("/api/auth/", {
+  const response = await apiFetch("/api/auth/", {
     headers: {
       "Content-Type": "application/json",
     },
@@ -31,7 +32,7 @@ export const authenticate = () => async (dispatch) => {
 };
 
 export const login = (email, password) => async (dispatch) => {
-  const response = await fetch("/api/auth/login", {
+  const response = await apiFetch("/api/auth/login", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -57,7 +58,8 @@ export const login = (email, password) => async (dispatch) => {
 };
 
 export const logout = () => async (dispatch) => {
-  const response = await fetch("/api/auth/logout", {
+  const response = await apiFetch("/api/auth/logout", {
+    method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
@@ -80,7 +82,7 @@ export const signUp = (username, email, password, first_name, last_name, image) 
   formData.append('last_name', last_name);
   if (image) formData.append('image', image);
 
-  const response = await fetch('/api/auth/signup', {
+  const response = await apiFetch('/api/auth/signup', {
     method: 'POST',
     body: formData,
   });

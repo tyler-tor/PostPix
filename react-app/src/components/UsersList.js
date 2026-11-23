@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import apiFetch from "../utils/apiFetch";
 
 function UsersList() {
   const [users, setUsers] = useState([]);
 
   useEffect(() => {
     async function fetchData() {
-      const response = await fetch('/api/users/');
+      const response = await apiFetch('/api/users/');
       const responseData = await response.json();
       setUsers(responseData.users);
     }

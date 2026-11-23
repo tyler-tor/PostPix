@@ -1,3 +1,4 @@
+import apiFetch from "../utils/apiFetch";
 const GET_FOLLOWING = 'profile_following/GET_FOLLOWING'
 
 
@@ -7,7 +8,7 @@ const getProfileFollowingAction = (following) =>({
 })
 
 export const getProfileFollowing = (id) => async (dispatch) => {
-    const response = await fetch(`/api/users/${id}/following`)
+    const response = await apiFetch(`/api/users/${id}/following`)
 
     if(response.ok){
         const data = await response.json();

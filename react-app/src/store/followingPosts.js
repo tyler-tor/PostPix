@@ -1,3 +1,4 @@
+import apiFetch from "../utils/apiFetch";
 const GET_FOLLOWING_POSTS = 'following/GET_FOLLOWING_POSTS'
 
 const getFollowingPosts = (posts) => ({
@@ -7,7 +8,7 @@ const getFollowingPosts = (posts) => ({
 
 
 export const getAllFollowingPosts = () => async (dispatch) => {
-  const response = await fetch("/api/me/following/posts");
+  const response = await apiFetch("/api/me/following/posts");
   if (response.ok) {
       const data = await response.json();
       dispatch(getFollowingPosts(data.Posts));

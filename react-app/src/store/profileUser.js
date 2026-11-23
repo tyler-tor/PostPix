@@ -1,3 +1,4 @@
+import apiFetch from "../utils/apiFetch";
 const GET_PROFILE_USER = 'profileUser/GET_PROFILE_USER'
 
 const getProfileUserAction = (user) =>({
@@ -7,7 +8,7 @@ const getProfileUserAction = (user) =>({
 
 
 export const getProfileUser = (id) => async dispatch =>{
-    const response = await fetch(`/api/users/${id}`)
+    const response = await apiFetch(`/api/users/${id}`)
     if(response.ok){
         const data = await response.json();
         // console.log('data', data)
