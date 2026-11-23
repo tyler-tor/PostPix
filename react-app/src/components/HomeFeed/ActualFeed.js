@@ -11,6 +11,7 @@ import {
   addUserLikedPostId,
   deleteUserLikedPostId,
 } from "../../store/user_post_like_list";
+import formatDate from "../../utils/formatDate";
 
 const ActualFeed = () => {
   const dispatch = useDispatch();
@@ -95,7 +96,7 @@ const ActualFeed = () => {
             </div>
             <div className="feed-child post-time-passed-container">
               <span className="secondary-text-grey font-size-10">
-                {post.createdAt}
+                {formatDate(post.createdAt)}
               </span>
             </div>
             <div className="feed-child add-a-comment"></div>

@@ -22,10 +22,10 @@ def validation_errors_to_error_messages(validation_errors):
 @login_required
 def update_comment(id):
     form = UpdateComment()
-    comment = Comment.query.get(id)
+    comment = db.session.get(Comment, id)
     if not comment:
         return {'errors': ['Comment not found']}, 404
-    user = User.query.get(current_user.id)
+    user = db.session.get(User, current_user.id)
     user = user.to_dict()
     if comment.user_id == current_user.id:
         if form.validate_on_submit():
@@ -46,7 +46,7 @@ def update_comment(id):
 @comment_routes.route('/<int:id>', methods=['DELETE'])
 @login_required
 def delete_comment(id):
-    comment = Comment.query.get(id)
+    comment = db.session.get(Comment, id)
     if not comment:
         return {'errors': ['Comment not found']}, 404
     if comment.user_id != current_user.id:

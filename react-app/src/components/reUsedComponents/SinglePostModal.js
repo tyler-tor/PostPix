@@ -21,6 +21,7 @@ import { addUserLikedPostId } from "../../store/user_post_like_list";
 import { getCurrentPost } from "../../store/currentPost";
 import EditCaptionThreeDotsModal from "./EditCaptionSettingsModal";
 import CommentContainer from "./CommentContainer";
+import formatDate from "../../utils/formatDate";
 
 const SinglePostModal = ({ post }) => {
   const [showModal, setShowModal] = useState(false);
@@ -221,7 +222,7 @@ const SinglePostModal = ({ post }) => {
                 {/* <strong onClick={getUserLikes}> {post.likes} </strong> */}
                 <UserLikedListModal postId={post.id} />
               </div>
-              <div className="post-modal-date-posted">{post.createdAt}</div>
+              <div className="post-modal-date-posted">{formatDate(post.createdAt)}</div>
               <div className="post-modal-add-comment-container">
                 <div className="left-hand-container-for-post-modal-comment-input">
                   {/* <FaRegSmile className="comment-smiley-face" /> */}

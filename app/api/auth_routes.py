@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, session, request
+from sqlalchemy import select
 from app.models import User, db, Post
 from app.forms import LoginForm
 from app.forms import SignUpForm
@@ -26,7 +27,7 @@ def authenticate():
     """
     if current_user.is_authenticated:
         curr_user = current_user.to_self()
-        posts = Post.query.filter(Post.user_id == curr_user['id']).all()
+        posts = db.session.scalars(select(Post).where(Post.user_id == curr_user['id'])).all()
         curr_user['Posts'] = [post.to_dict() for post in posts]
         return curr_user
     return {'errors': ['Unauthorized']}
@@ -40,7 +41,7 @@ def login():
     form = LoginForm()
     if form.validate_on_submit():
         # Add the user to the session, we are logged in!
-        user = User.query.filter(User.email == form.data['email']).first()
+        user = db.session.scalar(select(User).where(User.email == form.data['email']))
         login_user(user)
         # print('TEST------------------------------------', user.test)
         return user.to_self()

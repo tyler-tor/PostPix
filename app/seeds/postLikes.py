@@ -1,13 +1,14 @@
-from sqlalchemy import text
-from app.models import db, PostLike
+from sqlalchemy import func, select, update
+from app.models import db, Post, PostLike
 
 
 def recount_post_likes():
     """Set every posts.likes counter to the real number of post_likes rows."""
-    db.session.execute(text(
-        'UPDATE posts SET likes = '
-        '(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = posts.id)'
-    ))
+    real_count = (select(func.count(PostLike.id))
+                  .where(PostLike.post_id == Post.id)
+                  .scalar_subquery())
+    db.session.execute(update(Post).values(likes=real_count)
+                       .execution_options(synchronize_session=False))
     db.session.commit()
 
 def seed_post_likes(users, posts):

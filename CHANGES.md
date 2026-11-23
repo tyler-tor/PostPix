@@ -75,10 +75,12 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 
 ## Deviations from plan
 
-- **P5:** used `Model.query.get_or_404()` (works on the current Flask-SQLAlchemy 2.5) instead of `db.get_or_404()` (Flask-SQLAlchemy 3). Switch in P14.
+- **P5:** used `Model.query.get_or_404()` (works on the current Flask-SQLAlchemy 2.5) instead of `db.get_or_404()` (Flask-SQLAlchemy 3). Switched to `db.get_or_404()` in P14 (done).
 - **P6:** kept the `posts.likes` counter (the plan's alternative option) but made it race-safe and recounted, instead of dropping the column; the new migration sits on top of the existing chain because P15 (migration reset) is Batch 2.
 - **P3:** the signup profile-picture upload had to move into the signup request (multipart) because `/api/img/upload` now requires login; not spelled out in the plan.
 - **P11:** the plan said "own logo, colors and login layout"; done as a text wordmark + accent colour + demo note + new favicon; the larger layout change is left to P32.
+- **P14:** API timestamps were switched to ISO-8601 as the plan says; the frontend got a small `formatDate()` helper (the plan listed "frontend date formatting" without detail). `created_at`/`updated_at` also keep `default=func.now()` until P15 so the app keeps working on the old-migration schema between the two commits.
+- **P13:** installed SQLAlchemy 2.1.9 (newest; the plan named 2.0); all checks pass. Also touched the old `Dockerfile` (Python 3.12, `gunicorn wsgi:app` in P12, no separate psycopg2, echo off) and the README install steps so they are not broken before P33/P46.
 
 ---
 
@@ -566,3 +568,53 @@ Toolkit).
   - SQLAlchemy 2.1 is newer than the 2.0 the plan named; everything tested fine. If a
     library ever complains, pin `SQLAlchemy<2.1` in `requirements.in` and recompile.
   - Code still uses legacy `Model.query.get()`; it works but warns until P14.
+
+## P14 — Update code to SQLAlchemy 2.0 / Flask-SQLAlchemy 3 style
+- **Problem:** The code used the legacy 1.x query API (`Model.query.get()`,
+  `Model.query.filter(...).first()`, `Query.update()`), which SQLAlchemy 2 marks legacy and
+  prints warnings for; Batch 1 used `Model.query.get_or_404()` as a stop-gap. Followers
+  used `lazy='dynamic'` (legacy in 2.0). Timestamps used Python's `datetime.now` (local
+  time, no timezone) and the API returned Flask's HTTP-date strings
+  (`"Mon, 23 Nov 2026 18:04:05 GMT"`), which are awkward to parse. The like-recount in the
+  seeds used a raw SQL string.
+- **What changed:**
+  - All queries use the 2.0 style: `db.session.get(Model, id)`,
+    `db.get_or_404(Model, id, description=...)` (same JSON 404 messages as before),
+    `db.session.scalars(select(Model).where(...)).all()`,
+    `db.session.scalar(select(...))`, and `db.session.execute(update(Post)...)` for the
+    race-safe like counter. Covers `app/api/*.py`, the login/signup forms and the
+    Flask-Login user loader. No `Model.query` is left in the app.
+  - `User.followers` / `User.follows` are now normal lists (`lazy='select'`) instead of
+    dynamic queries; the code that appends/removes followers works unchanged.
+  - New `TimestampMixin` in `app/models/db.py`: `created_at` / `updated_at` are
+    `DateTime(timezone=True)`, `NOT NULL`, with `server_default=func.now()` (database
+    clock) and `onupdate=func.now()`. It also sets `default=func.now()` so inserts work on
+    the tables made by the old migrations (which have no server default); P15 drops that
+    once the new baseline migration exists.
+  - API timestamps are ISO-8601 with a UTC offset (`"2026-11-23T18:04:05+00:00"`) via a
+    small `iso()` helper (SQLite returns naive values; they are UTC and get marked so).
+    The frontend shows them with a new `react-app/src/utils/formatDate.js`
+    (`"Nov 23, 2026"`, in the viewer's locale) on the home feed and in the post modal.
+    Before, the raw HTTP-date string was printed.
+  - The explore list (`GET /api/posts/`) now sorts by `created_at DESC, id DESC`, so
+    posts created in the same second keep a stable order (SQLite's clock has 1-second
+    resolution).
+  - Seeds: `recount_post_likes()` uses an ORM `update()` with a correlated
+    `select(func.count())` instead of a raw SQL string. (The other raw SQL in the seed
+    files was already removed in P0; the dead `app/seeds/follows.py` goes in P15.)
+- **Files:** `app/__init__.py`, `app/api/{auth,comment,me,post,user}_routes.py`,
+  `app/forms/{login_form,signup_form}.py`, `app/models/{db,comments,posts,postLike,user}.py`,
+  `app/seeds/postLikes.py`, new `react-app/src/utils/formatDate.js`,
+  `react-app/src/components/HomeFeed/ActualFeed.js`,
+  `react-app/src/components/reUsedComponents/SinglePostModal.js`.
+- **How to verify:** `grep -rn "\.query\." app` finds nothing outside the dead
+  `app/seeds/follows.py`. New test-client script (P14, 20/20) runs with SQLAlchemy
+  legacy/deprecation warnings turned into errors and calls every GET endpoint, like/unlike,
+  comment create/edit and follow/unfollow; checks `createdAt` parses as ISO-8601 with a
+  timezone and 404 messages are unchanged. All earlier scripts green (the P10 feed-order
+  check now parses ISO dates). `npm run build` succeeds (CRA, pre-existing warnings only).
+- **Things to watch:** **API change:** `createdAt`/`updatedAt` are ISO strings now. The
+  frontend only displayed them, and it now formats them, so nothing else breaks; any
+  external script that parsed the old HTTP-date format must switch. Dates show as a date
+  only ("Nov 23, 2026"); "3 hours ago" style is a possible P31 polish. Seeded rows all get
+  (nearly) the same timestamp now, because the database clock is read once per statement.

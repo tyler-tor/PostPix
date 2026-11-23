@@ -1,5 +1,6 @@
 from flask import Blueprint
 from flask_login import current_user, login_required
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.models import db, Post
 from app.models.user import follows
@@ -16,13 +17,14 @@ def me_following_posts():
     selectinload), instead of 1 query per followed user, and the result is
     sorted by time across all users instead of grouped by user.
     """
-    followed_ids = db.session.query(follows.c.followed_id).filter(
+    followed_ids = select(follows.c.followed_id).where(
         follows.c.follower_id == current_user.id)
-    posts = (Post.query
-             .filter(Post.user_id.in_(followed_ids))
-             .options(selectinload(Post.users))
-             .order_by(Post.created_at.desc(), Post.id.desc())
-             .all())
+    posts = db.session.scalars(
+        select(Post)
+        .where(Post.user_id.in_(followed_ids))
+        .options(selectinload(Post.users))
+        .order_by(Post.created_at.desc(), Post.id.desc())
+    ).all()
     return {'Posts': [{**post.to_dict(), 'users': {
         'username': post.users.username,
         'profilePicture': post.users.profile_picture,

@@ -1,8 +1,7 @@
-from .db import db, environment, SCHEMA, add_prefix_for_prod
-from datetime import datetime
+from .db import db, environment, SCHEMA, add_prefix_for_prod, TimestampMixin, iso
 
 
-class Comment(db.Model):
+class Comment(TimestampMixin, db.Model):
     __tablename__ = 'comments'
 
     if environment == "production":
@@ -12,8 +11,6 @@ class Comment(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey(add_prefix_for_prod('users.id')), nullable=False)
     post_id = db.Column(db.Integer, db.ForeignKey(add_prefix_for_prod('posts.id')), nullable=False)
     body = db.Column(db.String(255))
-    created_at = db.Column(db.DateTime, default=datetime.now)
-    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
     users = db.relationship('User', back_populates="comments", single_parent=True)
     posts = db.relationship('Post', back_populates='comments', single_parent=True)
@@ -25,6 +22,6 @@ class Comment(db.Model):
             'userId': self.user_id,
             'postId': self.post_id,
             'body': self.body,
-            'createdAt': self.created_at,
-            'updatedAt': self.updated_at
+            'createdAt': iso(self.created_at),
+            'updatedAt': iso(self.updated_at)
         }

@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify
 from flask_login import login_required, current_user, logout_user
+from sqlalchemy import select
 from app.models import User, db, Post
 
 user_routes = Blueprint('users', __name__)
@@ -18,7 +19,7 @@ def validation_errors_to_error_messages(validation_errors):
 @user_routes.route('/')
 @login_required
 def users():
-    users = User.query.all()
+    users = db.session.scalars(select(User)).all()
     return {'users': [user.to_dict() for user in users]}
 
 
@@ -26,9 +27,9 @@ def users():
 @login_required
 def user(id):
     #included all posts by the user in the return, it will be useful for looking at profile pages.
-    user = User.query.get_or_404(id, description='User not found')
+    user = db.get_or_404(User, id, description='User not found')
     user = user.to_dict()
-    posts = Post.query.filter(Post.user_id == user['id']).all()
+    posts = db.session.scalars(select(Post).where(Post.user_id == user['id'])).all()
     user['Posts'] = [post.to_dict() for post in posts]
     return user
 
@@ -39,7 +40,7 @@ def delete_user(id):
     # Only the logged-in user may delete their own account.
     if current_user.id != id:
         return {'errors': ['You can only delete your own account']}, 403
-    user = User.query.get(id)
+    user = db.session.get(User, id)
     logout_user()
     db.session.delete(user)
     db.session.commit()
@@ -51,7 +52,7 @@ def get_followers(id):
     '''
         get users followers by id
     '''
-    user = User.query.get_or_404(id, description='User not found')
+    user = db.get_or_404(User, id, description='User not found')
     user = user.to_dict()
 
     # [post_arr.append(post.to_dict()) for post in posts]
@@ -66,7 +67,7 @@ def get_following(id):
     '''
         get user's who user(id) is following
     '''
-    user = User.query.get(id)
+    user = db.session.get(User, id)
     if(user):
         user = user.to_dict()
         # print('TEST------------------------->',user['following'])
@@ -76,11 +77,12 @@ def get_following(id):
 @user_routes.route('/<int:id>/notfollowing', methods=['GET'])
 @login_required
 def get_not_following(id):
-    currUser = User.query.get(id)
+    currUser = db.session.get(User, id)
     if(currUser):
         currUserDict = currUser.to_dict()
         following = currUserDict['following']
-        users = User.query.filter(User.username.notin_([dict(followee)['username'] for followee in following])).all()
+        users = db.session.scalars(select(User).where(
+            User.username.notin_([dict(followee)['username'] for followee in following]))).all()
         # print('-----------------------------------------------------------')
         # print([user.to_dict()['username'] for user in users if user.id != currUser.id])
         # print('-----------------------------------------------------------')
@@ -93,8 +95,8 @@ def get_not_following(id):
 @login_required
 #test with id 6 and id 7
 def follow_user(id):
-    curr_user = User.query.get(current_user.id)
-    f_user = User.query.get(id)
+    curr_user = db.session.get(User, current_user.id)
+    f_user = db.session.get(User, id)
     if(curr_user and f_user):
         for follower in f_user.followers:
             if follower.id == current_user.id:
@@ -115,8 +117,8 @@ def follow_user(id):
 @user_routes.route('/<int:id>/follow', methods=['DELETE'])
 @login_required
 def unfollow_user(id):
-    curr_user = User.query.get(current_user.id)
-    f_user = User.query.get(id)
+    curr_user = db.session.get(User, current_user.id)
+    f_user = db.session.get(User, id)
 
     if(curr_user and f_user):
         # curr_user_dict = curr_user.to_dict()
@@ -139,7 +141,7 @@ def unfollow_user(id):
 @user_routes.route('/<int:id>/likes', methods=['GET'])
 @login_required
 def get_all_liked_posts(id):
-    user = User.query.get(id)
+    user = db.session.get(User, id)
     if(user):
         post_arr = []
         for like in user.post_likes:
@@ -152,11 +154,11 @@ def get_all_liked_posts(id):
 @user_routes.route('/likes')
 @login_required
 def get_posts_liked():
-    user = User.query.get(current_user.id)
+    user = db.session.get(User, current_user.id)
 
     user_dict = user.to_dict()
     for postId in user_dict['likes']:
-        post = Post.query.get(postId['postId'])
+        post = db.session.get(Post, postId['postId'])
         postId['likes'] = post.likes
     # print('IN ROUTE ROUTE FOR USERS LIKES--------------------------------------------', user_dict['likes'])
     return {'likes' : user_dict['likes'] }
