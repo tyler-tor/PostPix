@@ -7,8 +7,6 @@ from app.forms.create_post import CreatePost
 from app.forms.update_post import UpdatePost
 from app.forms.create_comment import CreateComment
 
-#!needed for a query to get the latest post.
-from sqlalchemy import desc
 
 
 post_routes = Blueprint('posts', __name__)
@@ -49,8 +47,8 @@ def get_post_by_id(id):
     return post_dict
 
 @post_routes.route('/', methods=['POST'])
-# @login_required
-def create_post(): #! start here for backend aws connection
+@login_required
+def create_post():
     form = CreatePost()
     form['csrf_token'].data = request.cookies['csrf_token']
 
@@ -62,11 +60,10 @@ def create_post(): #! start here for backend aws connection
         )
         db.session.add(post)
         db.session.commit()
-        #!Had to requery to get the post with all the info created.
-        return_post = Post.query.order_by(desc(Post.created_at)).first()
-        post_dict = return_post.to_dict()
-        #!Coded added here to fix an issue with the return on thunk action. It is changed to included users key with user info.
-        user = User.query.get(post.user_id)
+        # Return the post we just created (not "the newest post in the table",
+        # which could belong to someone else if two users post at once).
+        post_dict = post.to_dict()
+        user = post.users
         post_dict['users'] = {
             'profilePicture' : user.profile_picture,
             'userId' : user.id,
@@ -81,8 +78,13 @@ def create_post(): #! start here for backend aws connection
 def update_post(id):
     form = UpdatePost()
     form['csrf_token'].data = request.cookies['csrf_token']
+    post = Post.query.get(id)
+    if not post:
+        return {'errors': ['Post not found']}, 404
+    # Only the author may edit a caption (prevents editing other users' posts by ID).
+    if post.user_id != current_user.id:
+        return {'errors': ['Forbidden']}, 403
     if form.validate_on_submit():
-        post = Post.query.get(id)
         user = User.query.get(post.user_id)
         post.caption = form.data['caption']
         db.session.commit()
@@ -101,13 +103,13 @@ def update_post(id):
 @login_required
 def delete_post(id):
     post = Post.query.get(id)
-    if post and current_user.id == post.user_id:
-        db.session.delete(post)
-        db.session.commit()
-        user = User.query.get(current_user.id)
-
-        return {'message': 'Success'}
-    return {'errors': 'This post does not exist'}
+    if not post:
+        return {'errors': ['Post not found']}, 404
+    if current_user.id != post.user_id:
+        return {'errors': ['Forbidden']}, 403
+    db.session.delete(post)
+    db.session.commit()
+    return {'message': 'Success'}
 
 
 # Add post like endpoints here!

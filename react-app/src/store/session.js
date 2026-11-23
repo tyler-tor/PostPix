@@ -69,20 +69,20 @@ export const logout = () => async (dispatch) => {
 };
 
 
-export const signUp = (username, email, password, first_name, last_name, url) => async (dispatch) => {
+export const signUp = (username, email, password, first_name, last_name, image) => async (dispatch) => {
+  // Sent as multipart form data so the optional profile picture file can be
+  // uploaded in the same request (the upload endpoint requires a logged-in user).
+  const formData = new FormData();
+  formData.append('username', username);
+  formData.append('email', email);
+  formData.append('password', password);
+  formData.append('first_name', first_name);
+  formData.append('last_name', last_name);
+  if (image) formData.append('image', image);
+
   const response = await fetch('/api/auth/signup', {
     method: 'POST',
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      username,
-      email,
-      password,
-      first_name,
-      last_name,
-      profile_picture: url
-    }),
+    body: formData,
   });
 
   if (response.ok) {

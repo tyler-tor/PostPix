@@ -37,15 +37,14 @@ def user(id):
 @user_routes.route('/<int:id>', methods=['DELETE'])
 @login_required
 def delete_user(id):
+    # Only the logged-in user may delete their own account.
+    if current_user.id != id:
+        return {'errors': ['You can only delete your own account']}, 403
     user = User.query.get(id)
-    if current_user.is_authenticated and current_user.id == user.id:
-        logout_user()
-        db.session.delete(user)
-        db.session.commit()
-        return {'message': 'Success'}
-    #----------------------------need to fix error handling for when you delete a given user -------------------------------------------------------
-    error = Exception('You are not this user')
-    return {'errors': validation_errors_to_error_messages(error)}, 401
+    logout_user()
+    db.session.delete(user)
+    db.session.commit()
+    return {'message': 'Success'}
 
 @user_routes.route('/<int:id>/followers', methods=['GET'])
 @login_required

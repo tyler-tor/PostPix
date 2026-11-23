@@ -25,6 +25,8 @@ def update_comment(id):
     form = UpdateComment()
     form['csrf_token'].data = request.cookies['csrf_token']
     comment = Comment.query.get(id)
+    if not comment:
+        return {'errors': ['Comment not found']}, 404
     user = User.query.get(current_user.id)
     user = user.to_dict()
     if comment.user_id == current_user.id:
@@ -40,15 +42,17 @@ def update_comment(id):
             comment_dict['myComment'] = True;
             return comment_dict
         return {'errors': validation_errors_to_error_messages(form.errors)}, 401
-    return {'errors': 'This comment does not belong to you!'}
+    return {'errors': ['This comment does not belong to you!']}, 403
 
 
 @comment_routes.route('/<int:id>', methods=['DELETE'])
 @login_required
 def delete_comment(id):
     comment = Comment.query.get(id)
-    if comment and comment.user_id == current_user.id:
-        db.session.delete(comment)
-        db.session.commit()
-        return {'message': 'Success'}
-    return {'errors': 'This comment does not belong to you!'}
+    if not comment:
+        return {'errors': ['Comment not found']}, 404
+    if comment.user_id != current_user.id:
+        return {'errors': ['This comment does not belong to you!']}, 403
+    db.session.delete(comment)
+    db.session.commit()
+    return {'message': 'Success'}

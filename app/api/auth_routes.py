@@ -3,6 +3,7 @@ from app.models import User, db, Post
 from app.forms import LoginForm
 from app.forms import SignUpForm
 from flask_login import current_user, login_user, logout_user, login_required
+from app.s3_helpers import (upload_file_to_s3, allowed_file, get_unique_filename)
 
 auth_routes = Blueprint('auth', __name__)
 
@@ -66,14 +67,30 @@ def sign_up():
     form = SignUpForm()
     form['csrf_token'].data = request.cookies['csrf_token']
     if form.validate_on_submit():
+        # The optional profile picture is sent in the same multipart request as
+        # the signup fields, because /api/img/upload now requires a logged-in user
+        # and a new user is not logged in yet. It is only uploaded after the form
+        # is valid, so failed signups do not leave orphan files in S3.
+        profile_picture = None
+        image = request.files.get('image')
+        if image and image.filename:
+            if not allowed_file(image.filename):
+                return {'errors': ['image : file type not permitted']}, 400
+            image.filename = get_unique_filename(image.filename)
+            upload = upload_file_to_s3(image)
+            if 'url' not in upload:
+                return {'errors': ['image : upload failed, try again or skip the picture']}, 400
+            profile_picture = upload['url']
+
         user = User(
             username=form.data['username'],
             email=form.data['email'],
             password=form.data['password'],
             first_name=form.data['first_name'],
             last_name=form.data['last_name'],
-            profile_picture=form.data['profile_picture']
         )
+        if profile_picture:
+            user.profile_picture = profile_picture
         db.session.add(user)
         db.session.commit()
         login_user(user)

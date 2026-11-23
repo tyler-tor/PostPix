@@ -14,8 +14,7 @@ const SignUpForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
-  const [payload, setPayload] = useState({});
-  const [url, setUrl] = useState(null);
+  const [image, setImage] = useState(null);
   const user = useSelector((state) => state.session.user);
   const history = useHistory()
   const dispatch = useDispatch();
@@ -23,25 +22,7 @@ const SignUpForm = () => {
   const onSignUp = async (e) => {
     e.preventDefault();
     if (password === repeatPassword) {
-      if(url) {
-        setPayload({
-          username:  username,
-          email: email,
-          password: password,
-          firstName: firstName,
-          lastName: lastName,
-          profilePicture: url
-        })
-      }else {
-        setPayload({
-          username:  username,
-          email: email,
-          password: password,
-          firstName: firstName,
-          lastName: lastName
-        })
-      }
-      const data = await dispatch(signUp(username, email, password, firstName, lastName, url));
+      const data = await dispatch(signUp(username, email, password, firstName, lastName, image));
       if (data) {
         setErrors(data);
       }
@@ -93,7 +74,7 @@ const SignUpForm = () => {
           Sign up to see photos and videos from your friends.
         </h2>
         <h3>Optional profile picture:</h3>
-          <ProPicImageUpload setUrl={setUrl} />
+          <ProPicImageUpload setImage={setImage} />
       <form className="form-container" onSubmit={onSignUp}>
         <div className="signup-errors">
           {errors.map((error, ind) => (

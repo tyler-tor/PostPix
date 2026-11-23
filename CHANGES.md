@@ -100,3 +100,37 @@ _None yet._
   `flask db upgrade && flask seed all`. The old `.env` is still in history (see P1 above).
   P47 will finish documenting `.env.example`; the react-app has its own `.gitignore` which
   is unchanged.
+
+## P3 — Close authorization holes
+- **Problem:** (a) `PUT /api/posts/<id>` never checked who owned the post, so any logged-in
+  user could rewrite anyone's caption just by changing the ID (an "IDOR" bug). (b)
+  `POST /api/posts/` had `@login_required` commented out (logged-out requests crashed with
+  a 500), and it returned "the newest post in the whole table", which could be someone
+  else's post if two people posted at the same time. (c) `POST /api/img/upload` had no
+  login check, so anyone on the internet could upload files into the S3 bucket (cost and
+  abuse risk). (d) Delete post / edit+delete comment / delete account returned `200 OK`
+  with an error message for non-owners, and crashed (500) for missing IDs.
+- **What changed:** Edit caption now returns 404 if the post does not exist and 403 if you
+  are not the author. Create post requires login and returns the post object that was just
+  inserted. The upload endpoint requires login. Delete post, edit/delete comment and
+  delete account return 404 (missing) or 403 (not yours) with `{"errors": [...]}`.
+  Because uploads now need a logged-in user, the **signup profile picture** could no
+  longer be uploaded before the account existed, so signup now sends a multipart form
+  (fields + optional `image` file) in one request; the server validates the form first,
+  then uploads the image, then creates the user. The client can no longer set an
+  arbitrary `profile_picture` URL at signup.
+- **Files:** `app/api/post_routes.py`, `app/api/img_routes.py`, `app/api/comment_routes.py`,
+  `app/api/user_routes.py`, `app/api/auth_routes.py`, `app/forms/signup_form.py`,
+  `react-app/src/store/session.js`, `react-app/src/components/LoginPage/SignUpForm.js`,
+  `react-app/src/components/LoginPage/ProPicImageUpload.js`.
+- **How to verify:** Log in as demo (`demo@aa.io` / `password`), then
+  `PUT /api/posts/2` with `{"caption":"x"}` -> **403** (post 2 belongs to marnie).
+  `PUT /api/posts/<your post>` -> 200. `PUT /api/posts/99999` -> 404.
+  Logged out: `POST /api/img/upload` and `POST /api/posts/` -> redirected to
+  `/api/auth/unauthorized` (401). Create a post -> response `userId` is yours. In the UI:
+  sign up with and without a picture (picture needs S3 configured).
+  Verified with a Flask test-client script (13/13 checks).
+- **Things to watch / follow-ups:** With S3 not configured, signing up **with** a picture
+  returns a 400 "upload failed" error (signup without a picture works). Logged-out API
+  calls get a 302 redirect to the 401 endpoint (Flask-Login default); P5 makes them a
+  direct JSON 401. P42 should turn these checks into pytest tests.
