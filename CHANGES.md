@@ -83,6 +83,8 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 - **P13:** installed SQLAlchemy 2.1.9 (newest; the plan named 2.0); all checks pass. Also touched the old `Dockerfile` (Python 3.12, `gunicorn wsgi:app` in P12, no separate psycopg2, echo off) and the README install steps so they are not broken before P33/P46.
 - **P15:** the plan said "add P6/P21 changes as new migrations" on top of the baseline; as instructed for Batch 2, the P6 unique constraint is folded **into** the baseline instead (no data to migrate). P21 indexes are still a future migration. Also added a constraint naming convention, `NOT NULL` on `follows` columns and `render_as_batch=True` (small, needed for clean future migrations).
 - **P17:** removed the unused FontAwesome packages instead of bumping them, and bumped redux/redux-thunk to 5/3 here (needed by react-redux 9) rather than waiting for P19.
+- **P19:** done as one commit (the plan suggested one per slice) and as the minimal safe version: each reducer became an RTK slice with the same state shape and thunks; duplicate slices were not merged and RTK Query was not added (see P19 "Things to watch").
+- **P16 regression, fixed in P19:** the P16 change `require("redux-logger").default` -> `import logger from "redux-logger"` broke the development build (`npm run dev`) for the P16-P18 commits; production builds were unaffected. History was not rewritten; P19 fixes it.
 
 ---
 
@@ -805,3 +807,50 @@ Toolkit).
   contains a dot (e.g. `/u/john.doe`), adjust the "looks like a file" rule in
   `react_root()`. Data loading still happens in components (`useEffect`), not in v7
   loaders; that could come with P19/P31.
+
+## P19 — (Optional) Move to Redux Toolkit
+- **Problem:** 14 hand-written reducers with string action-type constants, action
+  creators and `switch` statements (about 1,000 lines), a manual store setup
+  (`createStore` + `applyMiddleware(thunk, logger)` + DevTools compose), and
+  `comments` registered twice in `combineReducers`. The deprecated `createStore` is what
+  Redux 5 warns about. Several slices hold overlapping data (`follow`, `followers`,
+  `profileFollowing`, `notFollowed`, `users`, `searchUsers`).
+- **What changed:**
+  - Added `@reduxjs/toolkit` 2.15.0 and removed `redux` and `redux-thunk` (RTK includes
+    both).
+  - `store/index.js`: `configureStore({ reducer, middleware })`. RTK adds redux-thunk,
+    Redux DevTools support and, **in development only**, checks that throw if state is
+    mutated outside a reducer or if non-serializable values are dispatched. The duplicate
+    `comments` key is gone. `redux-logger` is kept for development, now via
+    `createLogger({ collapsed: true })`.
+  - Every reducer file is now a `createSlice` (`session`, `posts`, `comments`, `follow`,
+    `users`, `currentPost`, `userLikes`, `userPostLikes`, `followingPosts`, `followers`,
+    `notFollowed`, `searchUsers`, `profileFollowing`, `profileUser`). Reducers are short
+    "mutating" functions that Immer turns into safe copies (e.g. the old comment-edit
+    reducer really mutated state; now it is safe). A tiny `store/helpers.js` `keyBy()`
+    replaces the repeated "list -> object keyed by id" loops.
+  - **Same state shape and the same exported thunks** (`login`, `getAllPosts`,
+    `addFollowing`, ...), with the same return values, so no component had to change.
+    Thunks stay plain async functions (not `createAsyncThunk`) for exactly that reason:
+    components use `const errors = await dispatch(login(...))`.
+  - **Bug fixed (introduced in P16):** `import logger from "redux-logger"` gives the
+    CommonJS module object, not the middleware function, so with P16-P18 the
+    **development** build / `npm run dev` crashed at start-up with "logger is not a
+    function" (production builds were fine, which is what the earlier checks ran). Now a
+    named `import { createLogger }`; checked in the Vite dev server's transformed output
+    and in a development-mode bundle.
+- **Files:** `react-app/package.json`, `react-app/package-lock.json`,
+  `react-app/src/store/*.js` (all 15 files), new `react-app/src/store/helpers.js`.
+- **How to verify:** `npm run build` OK; `npm audit` 0. Headless jsdom runs on the
+  production bundle **and on a development-mode bundle** (so RTK's mutation and
+  serializability checks, StrictMode double effects and redux-logger are active):
+  Demo Login, feed, explore, post modal like (0 -> 1, red heart) and comment, profile,
+  logout; on `/9` Follow -> "Following" and followers 0 -> 1, then Unfollow -> back to 0;
+  deep links `/explore`, `/1`, `/no-such-page`; **no console errors** in any run.
+- **Things to watch:** this is the "minimal safe" version of P19. The overlapping slices
+  were **not merged** and **RTK Query was not introduced**: merging them changes which
+  data each screen reads and needs screen-by-screen testing (better done with P31's
+  loading/error states and P43's frontend tests). Action type strings changed (e.g.
+  `session/SET_USER` -> `session/setUser`); only visible in DevTools/logger. In
+  development RTK will now throw if a component ever mutates store data; that is on
+  purpose.

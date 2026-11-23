@@ -1,35 +1,29 @@
+import { createSlice } from "@reduxjs/toolkit";
 import apiFetch from "../utils/apiFetch";
-const GET_NON_FOLLOWING = 'following/GET_NON_FOLLOWING'
+import { keyBy } from "./helpers";
 
-
-const getNonFollowingAction = (nonFollowing) => ({
-    type: GET_NON_FOLLOWING,
-    payload: nonFollowing
+// Users the current user does not follow yet (home page suggestions), keyed by id.
+const notFollowedSlice = createSlice({
+  name: "notFollowed",
+  initialState: {},
+  reducers: {
+    // Replace the whole list (so removed items disappear).
+    setNonFollowing: (state, action) => keyBy(action.payload, "id"),
+  },
 });
 
+const { setNonFollowing } = notFollowedSlice.actions;
 
 export const getNonFollowing = (id) => async(dispatch) => {
     const response = await apiFetch(`/api/users/${id}/notfollowing`)
     // console.log('response', response)
     if(response.ok){
         const data = await response.json();
-        dispatch(getNonFollowingAction(data.users));
+        dispatch(setNonFollowing(data.users));
         return data
     }
     return response
 }
 
 
-export default function nonFollowingReducer(state = {}, action) {
-    let newState;
-    switch(action.type) {
-        case GET_NON_FOLLOWING:
-            newState = {}
-            action.payload.forEach((user) => {
-                newState[user.id] = user
-            })
-            return newState
-        default:
-            return state;
-    }
-}
+export default notFollowedSlice.reducer;

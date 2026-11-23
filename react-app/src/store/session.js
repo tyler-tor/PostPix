@@ -1,19 +1,21 @@
+import { createSlice } from "@reduxjs/toolkit";
 import apiFetch from "../utils/apiFetch";
-// constants
-const SET_USER = "session/SET_USER";
-const REMOVE_USER = "session/REMOVE_USER";
-const UPDATE_LIKES_USER = 'session/UPDATE_USER';
 
-const setUser = (user) => ({
-  type: SET_USER,
-  payload: user,
+// The logged-in user (or null).
+const sessionSlice = createSlice({
+  name: "session",
+  initialState: { user: null },
+  reducers: {
+    setUser(state, action) {
+      state.user = action.payload;
+    },
+    removeUser(state) {
+      state.user = null;
+    },
+  },
 });
 
-const removeUser = () => ({
-  type: REMOVE_USER,
-});
-
-const initialState = { user: null };
+const { setUser, removeUser } = sessionSlice.actions;
 
 export const authenticate = () => async (dispatch) => {
   const response = await apiFetch("/api/auth/", {
@@ -101,13 +103,4 @@ export const signUp = (username, email, password, first_name, last_name, image) 
   }
 };
 
-export default function reducer(state = initialState, action) {
-  switch (action.type) {
-    case SET_USER:
-      return { user: action.payload };
-    case REMOVE_USER:
-      return { user: null };
-    default:
-      return state;
-  }
-}
+export default sessionSlice.reducer;

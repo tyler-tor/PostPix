@@ -1,34 +1,29 @@
+import { createSlice } from "@reduxjs/toolkit";
 import apiFetch from "../utils/apiFetch";
-const GET_FOLLOWERS = 'following/GET_FOLLOWERS'
+import { keyBy } from "./helpers";
 
-const getFollowers = (followers) => ({
-    type: GET_FOLLOWERS,
-    payload: followers
-})
+// Followers of the user whose page is open, keyed by userId.
+const followersSlice = createSlice({
+  name: "followers",
+  initialState: {},
+  reducers: {
+    // Replace the whole list (so removed items disappear).
+    setFollowers: (state, action) => keyBy(action.payload, "userId"),
+  },
+});
 
+const { setFollowers } = followersSlice.actions;
 
 export const getAllFollowers = (id) => async (dispatch) => {
     const response = await apiFetch(`/api/users/${id}/followers`)
 
     if(response.ok){
         const data = await response.json();
-        dispatch(getFollowers(data.followers));
+        dispatch(setFollowers(data.followers));
         return data.followers
     }
     return response
 }
 
 
-export default function followersReducer (state = {}, action) {
-    let newState;
-    switch(action.type) {
-        case GET_FOLLOWERS:
-            newState = {} //!changed to blank state so it refreshes the list
-            action.payload.forEach((follower) => {
-                newState[follower.userId] = follower
-            })
-            return newState
-        default:
-            return state
-    }
-}
+export default followersSlice.reducer;

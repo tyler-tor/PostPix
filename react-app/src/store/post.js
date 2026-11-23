@@ -5,45 +5,36 @@ import { getAllFollowers } from "./follower";
 import { getProfileFollowing } from "./profile_following_store";
 import { getProfileUser } from "./profileUser";
 import apiFetch from "../utils/apiFetch";
-const GET_POSTS = "posts/GET_POSTS";
-// const GET_FOLLOWING_POSTS = 'following/GET_FOLLOWING_POSTS'
-const ADD_POST = "posts/ADD_POST";
-const UPDATE_POST = 'posts/UPDATE_POST';
-const DELETE_POST = 'posts/DELETE_POST';
+import { createSlice } from "@reduxjs/toolkit";
+import { keyBy } from "./helpers";
 
-
-
-const getPosts = (posts) => ({
-  type: GET_POSTS,
-  payload: posts,
+// All posts (explore page and profile grids), keyed by post id.
+const postsSlice = createSlice({
+  name: "posts",
+  initialState: {},
+  reducers: {
+    // Merge (not replace), like the old reducer did.
+    setPosts(state, action) {
+      Object.assign(state, keyBy(action.payload));
+    },
+    // Add and update both store the post the API returned.
+    upsertPost(state, action) {
+      state[action.payload.id] = action.payload;
+    },
+    removePost(state, action) {
+      delete state[action.payload];
+    },
+  },
 });
 
-// const getFollowingPosts = (posts) => ({
-//   type: GET_FOLLOWING_POSTS,
-//   payload: posts
-// });
-
-const addPostAction = (post) => ({
-  type: ADD_POST,
-  payload: post
-})
-
-const updatePostAction = (caption) => ({
-  type: UPDATE_POST,
-  payload : caption
-})
-
-const deletePostAction = (id) =>({
-  type: DELETE_POST,
-  payload: id
-})
+const { setPosts, upsertPost, removePost } = postsSlice.actions;
 
 export const deletePost = (id) => async (dispatch) =>{
   const response = await apiFetch(`/api/posts/${id}`,{
     method:'DELETE'
   })
   if(response.ok){
-    dispatch(deletePostAction(id))
+    dispatch(removePost(id))
     // dispatch(clearCommentsAction())
 
     return 'Sucess!'
@@ -61,7 +52,7 @@ export const updatePost = (caption) => async (dispatch) =>{
   })
   if(response.ok){
     const editedPost = await response.json()
-    dispatch(updatePostAction(editedPost))
+    dispatch(upsertPost(editedPost))
     dispatch(getCurrentPost(caption.id))
     // console.log('DEBUG EDITED POST-------------------', editedPost);
     return null
@@ -92,7 +83,7 @@ export const addPost = (post) => async (dispatch) =>{
   })
   if(response.ok){
     const newPost = await response.json()
-    dispatch(addPostAction(newPost))
+    dispatch(upsertPost(newPost))
     dispatch(getAllFollowing(post.userId))
     //!added this to update follower numbers
     dispatch(getAllFollowers(post.userId))
@@ -130,49 +121,11 @@ export const getAllPosts = () => async (dispatch) => {
   if (response.ok) {
     const data = await response.json();
     // console.log("test", data);
-    dispatch(getPosts(data.Posts));
+    dispatch(setPosts(data.Posts));
     return data;
   }
 
   return response;
 };
 
-export default function postsReducer(state = {}, action) {
-  let newState;
-  switch (action.type) {
-    case GET_POSTS:
-      newState = { ...state };
-      action.payload.forEach((post) => {
-        newState[post.id] = post;
-      });
-      return newState;
-    // case GET_FOLLOWING_POSTS:
-    //   newState = {...state};
-    //   action.payload.forEach((post) => {
-    //     newState[post.id] = post
-    //   })
-    //   return newState;
-    case ADD_POST:
-      newState = {...state}
-      // console.log(action.payload.id);
-      newState[action.payload.id] = action.payload
-      return newState
-
-
-      // return {
-      //   ...state,
-      //   [action.payload.post.id] : action.payload.post
-      // }
-    case UPDATE_POST:
-      newState = {...state}
-      // console.log('TEST IN REDUCER', action.payload);
-      newState[action.payload.id] = action.payload
-      return newState
-    case DELETE_POST:
-      newState = {...state}
-      delete newState[action.payload];
-      return newState;
-    default:
-      return state;
-  }
-}
+export default postsSlice.reducer;

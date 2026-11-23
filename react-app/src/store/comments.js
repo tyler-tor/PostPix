@@ -1,33 +1,31 @@
+import { createSlice } from "@reduxjs/toolkit";
 import apiFetch from "../utils/apiFetch";
-const GET_COMMENTS = "comments/GET_COMMENTS";
-const POST_COMMENT = "comments/ADD_COMMENT";
-const UPDATE_COMMENT = "comments/UPDATE_COMMENT";
-const DELETE_COMMENT = "comments/DELETE_COMMENT";
-const CLEAR_COMMENTS = 'comments/CLEAR_COMMENTS';
+import { keyBy } from "./helpers";
 
-const getComments = (comments) => ({
-  type: GET_COMMENTS,
-  payload: comments,
+// Comments of the post open in the modal, keyed by comment id.
+// (Immer lets the reducers "mutate" state safely; RTK makes the copies.)
+const commentsSlice = createSlice({
+  name: "comments",
+  initialState: {},
+  reducers: {
+    setComments: (state, action) => keyBy(action.payload),
+    addComment(state, action) {
+      state[action.payload.id] = action.payload;
+    },
+    updateCommentBody(state, action) {
+      const comment = state[action.payload.id];
+      if (comment) comment.body = action.payload.body;
+    },
+    removeComment(state, action) {
+      delete state[action.payload];
+    },
+    clearComments: () => ({}),
+  },
 });
 
-const postCommentAction = (body) => ({
-  type: POST_COMMENT,
-  payload: body,
-});
-
-const updateOneComment = (payload) => ({
-  type: UPDATE_COMMENT,
-  payload,
-});
-
-const deleteOneComment = (id) => ({
-  type: DELETE_COMMENT,
-  payload: id,
-});
-
-export const clearCommentsAction = () =>({
-  type: CLEAR_COMMENTS,
-})
+const { setComments, addComment, updateCommentBody, removeComment } =
+  commentsSlice.actions;
+export const clearCommentsAction = commentsSlice.actions.clearComments;
 
 export const postComment = (comment) => async (dispatch) => {
   const { postId, body } = comment;
@@ -41,7 +39,7 @@ export const postComment = (comment) => async (dispatch) => {
   if (response.ok) {
     const newComment = await response.json();
     // console.log('IN THUNK FOR COMMENTS===================', newComment);
-    dispatch(postCommentAction(newComment));
+    dispatch(addComment(newComment));
     return null;
   }
   else if (response.status < 500) {
@@ -74,7 +72,7 @@ export const updateComment = (payload) => async (dispatch) => {
     let updatedComment = await response.json()
     // console.log('update comment thunk ------------------------', updatedComment);
     dispatch(
-      updateOneComment({
+      updateCommentBody({
         body,
         id: commentId,
       })
@@ -101,7 +99,7 @@ export const deleteComment = (commentId) => async (dispatch) => {
   // console.log(response);
   if (response.ok) {
     const data = await response.json();
-    dispatch(deleteOneComment(commentId));
+    dispatch(removeComment(commentId));
     return data;
   }
 };
@@ -114,38 +112,11 @@ export const getAllComments = (id) => async (dispatch) => {
   if (response.ok) {
     const data = await response.json();
     // console.log('IN THUNK---------------------', data);
-    dispatch(getComments(data.Comments));
+    dispatch(setComments(data.Comments));
     return data;
   }
 
   return response;
 };
 
-export default function commentsReducer(state = {}, action) {
-  let newState;
-  switch (action.type) {
-    case GET_COMMENTS:
-      newState = {};
-      action.payload.forEach((comment) => {
-        newState[comment.id] = comment;
-      });
-      return newState;
-    case UPDATE_COMMENT:
-      newState = { ...state };
-      newState[action.payload.id].body = action.payload.body;
-      return newState;
-    case DELETE_COMMENT:
-      newState = { ...state };
-      delete newState[action.payload];
-      return newState;
-    case POST_COMMENT:
-      newState = { ...state };
-      newState[action.payload.id] = action.payload;
-      return newState;
-    case CLEAR_COMMENTS:
-      newState = {}
-      return newState;
-    default:
-      return state;
-  }
-}
+export default commentsSlice.reducer;

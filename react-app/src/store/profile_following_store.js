@@ -1,18 +1,25 @@
+import { createSlice } from "@reduxjs/toolkit";
 import apiFetch from "../utils/apiFetch";
-const GET_FOLLOWING = 'profile_following/GET_FOLLOWING'
+import { keyBy } from "./helpers";
 
+// Who the profile user follows, keyed by userId.
+const profileFollowingSlice = createSlice({
+  name: "profileFollowing",
+  initialState: {},
+  reducers: {
+    // Replace the whole list (so removed items disappear).
+    setProfileFollowing: (state, action) => keyBy(action.payload, "userId"),
+  },
+});
 
-const getProfileFollowingAction = (following) =>({
-    type: GET_FOLLOWING,
-    payload: following
-})
+const { setProfileFollowing } = profileFollowingSlice.actions;
 
 export const getProfileFollowing = (id) => async (dispatch) => {
     const response = await apiFetch(`/api/users/${id}/following`)
 
     if(response.ok){
         const data = await response.json();
-        dispatch(getProfileFollowingAction(data.following));
+        dispatch(setProfileFollowing(data.following));
         return data
     }
     return response
@@ -20,16 +27,4 @@ export const getProfileFollowing = (id) => async (dispatch) => {
 
 
 
-export default function profileFollowingReducer(state = {}, action) {
-    let newState;
-    switch (action.type) {
-        case GET_FOLLOWING:
-            newState = {} //!changed to blank state so it refreshes the list
-            action.payload.forEach((followee) => {
-                newState[followee.userId] = followee
-            })
-            return newState
-        default:
-            return state;
-    }
-}
+export default profileFollowingSlice.reducer;

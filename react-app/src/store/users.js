@@ -1,17 +1,25 @@
+import { createSlice } from "@reduxjs/toolkit";
 import apiFetch from "../utils/apiFetch";
-const GET_USERS = 'users/GET_USERS'
+import { keyBy } from "./helpers";
 
-const getUsers = (users) => ({
-    type: GET_USERS,
-    payload: users
-})
+// All users, keyed by id.
+const usersSlice = createSlice({
+  name: "users",
+  initialState: {},
+  reducers: {
+    // Replace the whole list (so removed items disappear).
+    setUsers: (state, action) => keyBy(action.payload, "id"),
+  },
+});
+
+const { setUsers } = usersSlice.actions;
 
 export const getAllUsers = () => async (dispatch) => {
     const response = await apiFetch('/api/users/')
 
     if (response.ok) {
         const data = await response.json();
-        dispatch(getUsers(data.users))
+        dispatch(setUsers(data.users))
         return data
     }
     return response
@@ -19,20 +27,8 @@ export const getAllUsers = () => async (dispatch) => {
 //!moved to its own store.
 // export const setSearchUsers = (users) => (dispatch) =>{
 //     if(users){
-//         dispatch(getUsers(users))
+//         dispatch(setUsers(users))
 //     }
 // }
 
-export default function usersReducer(state = {}, action) {
-    let newState;
-    switch (action.type) {
-        case GET_USERS:
-            newState = {}
-            action.payload.forEach((user) => {
-                newState[user.id] = user
-            });
-            return newState
-        default:
-            return state
-    }
-}
+export default usersSlice.reducer;

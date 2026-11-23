@@ -1,32 +1,27 @@
+import { createSlice } from "@reduxjs/toolkit";
 import apiFetch from "../utils/apiFetch";
-const GET_FOLLOWING_POSTS = 'following/GET_FOLLOWING_POSTS'
+import { keyBy } from "./helpers";
 
-const getFollowingPosts = (posts) => ({
-    type: GET_FOLLOWING_POSTS,
-    payload: posts
-  });
+// Home feed: posts from people the current user follows, keyed by post id.
+const followingPostsSlice = createSlice({
+  name: "followingPosts",
+  initialState: {},
+  reducers: {
+    // Replace the whole list (so removed items disappear).
+    setFollowingPosts: (state, action) => keyBy(action.payload, "id"),
+  },
+});
 
+const { setFollowingPosts } = followingPostsSlice.actions;
 
 export const getAllFollowingPosts = () => async (dispatch) => {
   const response = await apiFetch("/api/me/following/posts");
   if (response.ok) {
       const data = await response.json();
-      dispatch(getFollowingPosts(data.Posts));
+      dispatch(setFollowingPosts(data.Posts));
       return data;
   }
   return response;
 }
 
-export default function followingPostsReducer( state = {}, action ) {
-    let newState;
-    switch(action.type) {
-        case GET_FOLLOWING_POSTS:
-        newState = {};
-        action.payload.forEach((post) => {
-            newState[post.id] = post
-        })
-        return newState;
-        default:
-            return state;
-    }
-}
+export default followingPostsSlice.reducer;

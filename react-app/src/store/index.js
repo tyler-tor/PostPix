@@ -1,6 +1,7 @@
-import { createStore, combineReducers, applyMiddleware, compose } from "redux";
-import { thunk } from "redux-thunk"; // named export since redux-thunk 3
-import logger from "redux-logger";
+import { configureStore } from "@reduxjs/toolkit";
+// Named import: redux-logger is an old CommonJS package and its default
+// export is not reliably a function after bundling.
+import { createLogger } from "redux-logger";
 import postsReducer from "./post";
 import commentsReducer from "./comments";
 import session from "./session";
@@ -17,14 +18,15 @@ import profileFollowingReducer from "./profile_following_store";
 import profileUserReducer from "./profileUser";
 
 
-const rootReducer = combineReducers({
+// One entry per slice. The key is the name components use in useSelector,
+// e.g. useSelector((state) => state.posts).
+const reducer = {
   session,
   posts: postsReducer,
   comments: commentsReducer,
   follow: followingReducer,
   users: usersReducer,
   currentPost: currentPostReducer,
-  comments: commentsReducer,
   userLikes: userLikesReducer,
   userPostLikes: userPostLikeReducer,
   followingPosts: followingPostsReducer,
@@ -32,22 +34,20 @@ const rootReducer = combineReducers({
   notFollowed: nonFollowingReducer,
   searchUsers: searchUserReducer,
   profileFollowing: profileFollowingReducer,
-  profileUser: profileUserReducer
-});
-
-let enhancer;
-
-// import.meta.env.PROD is Vite's replacement for CRA's process.env.NODE_ENV check.
-if (import.meta.env.PROD) {
-  enhancer = applyMiddleware(thunk);
-} else {
-  const composeEnhancers =
-    window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
-  enhancer = composeEnhancers(applyMiddleware(thunk, logger));
-}
-
-const configureStore = (preloadedState) => {
-  return createStore(rootReducer, preloadedState, enhancer);
+  profileUser: profileUserReducer,
 };
 
-export default configureStore;
+// configureStore (Redux Toolkit) sets up redux-thunk, the Redux DevTools
+// browser extension and, in development, checks that catch accidental state
+// mutation. redux-logger is added in development only.
+const configureAppStore = (preloadedState) =>
+  configureStore({
+    reducer,
+    preloadedState,
+    middleware: (getDefaultMiddleware) =>
+      import.meta.env.DEV
+        ? getDefaultMiddleware().concat(createLogger({ collapsed: true }))
+        : getDefaultMiddleware(),
+  });
+
+export default configureAppStore;

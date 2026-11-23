@@ -1,32 +1,23 @@
-const SET_USERS = '/search_users/SET_USERS'
+import { createSlice } from "@reduxjs/toolkit";
+import { keyBy } from "./helpers";
 
+// Users matching the nav bar search box, keyed by id.
+const searchUsersSlice = createSlice({
+  name: "searchUsers",
+  initialState: {},
+  reducers: {
+    setUsers: (state, action) => keyBy(action.payload, "id"),
+  },
+});
 
-const getUsers = (users) =>({
-    type:SET_USERS,
-    payload: users
-})
-
-
+const { setUsers } = searchUsersSlice.actions;
 
 export const setSearchUsers = (users) => (dispatch) =>{
     if(users){
-        dispatch(getUsers(users))
+        dispatch(setUsers(users))
     }
 }
 
 
 
-export default function searchUserReducer(state = {}, action){
-    let newState;
-    switch (action.type) {
-        case SET_USERS:
-            newState = {}
-            action.payload.forEach((user) => {
-                newState[user.id] = user
-            });
-            return newState
-        default:
-          return state;
-      }
-
-}
+export default searchUsersSlice.reducer;
