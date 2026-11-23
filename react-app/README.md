@@ -1,7 +1,14 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# Postpix frontend (React + Vite)
 
-Your React App will live here.  You will need to run `npm install` to install all your dependencies before starting up the application. While in development, run this application from this location using `npm start`.
+Requires **Node 22.12+** (Node 22 LTS).
 
-No environment variables are needed to run this application in development, but be sure to set the REACT_APP_BASE_URL environment variable in your dockerfile!
+```bash
+npm install
+npm run dev      # http://localhost:3000, /api is proxied to Flask on :5000
+npm run build    # production build into react-app/build (served by Flask)
+npm run preview  # serve the production build locally
+```
 
-This app will be automatically built when you push to your main branch on Github. 
+Start the Flask backend first (`flask run` from the repo root) so `/api` calls work.
+The dev proxy lives in `vite.config.js`. No environment variables are needed; if you
+add one it must start with `VITE_` and is read as `import.meta.env.VITE_...`.

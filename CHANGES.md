@@ -674,3 +674,53 @@ Toolkit).
   - The baseline was not run against a real Postgres server (none available here); the
     generated Postgres SQL was reviewed instead. Run it once against the P34 compose
     Postgres.
+
+## P16 — Replace Create React App with Vite
+- **Problem:** The frontend was built with Create React App (`react-scripts` 4), which is
+  abandoned, needed `NODE_OPTIONS=--openssl-legacy-provider` on Node 17+, was slow, and
+  caused almost all of the **193 npm audit findings (16 critical, 56 high)**.
+- **What changed:**
+  - `react-scripts`, `http-proxy-middleware` and the CRA testing libraries are removed;
+    **Vite 8** + `@vitejs/plugin-react` are the dev server and bundler. New
+    `react-app/vite.config.js`: dev server on port **3000** with a proxy
+    `/api -> http://localhost:5000` (replaces CRA's `"proxy"` field), and
+    `build.outDir: "build"` so Flask and the Dockerfile keep serving `react-app/build`.
+  - `public/index.html` moved to `react-app/index.html` (Vite's entry) with
+    `<script type="module" src="/src/index.jsx">` and `/favicon.ico` instead of
+    `%PUBLIC_URL%`. `public/` still holds the favicon (copied to the build as-is).
+  - The 49 `.js` files containing JSX were renamed to `.jsx` (`git mv`, history kept).
+    Plain re-export `index.js` files, `store/` and `utils/` stay `.js`. Imports without
+    extensions keep working.
+  - `store/index.js`: `process.env.NODE_ENV === "production"` ->
+    `import.meta.env.PROD`, and `require("redux-logger")` -> a normal `import` (Vite
+    has no `require`).
+  - Fixed a broken import Vite refuses to build (webpack only warned):
+    `PostGrid.jsx` imported a non-existent `getAllFollowingPosts` from `store/post`.
+  - `package.json`: scripts `dev`/`start` (`vite`), `build` (`vite build`), `preview`;
+    `"type": "module"`; `engines.node >= 22.12`; dropped `eslintConfig`, `browserslist`,
+    `proxy`. React 17 / router 5 / Redux 4 versions are unchanged here (P17-P19).
+    `package-lock.json` regenerated from scratch.
+  - The old `NODE_OPTIONS=--openssl-legacy-provider` workaround is no longer needed
+    (docs updated in the walkthrough commit).
+  - Env vars: the unused `REACT_APP_BASE_URL` was removed from `.env.example` and the
+    `Dockerfile`; `.env.example` explains the `VITE_` prefix rule for any future
+    frontend variable (and that they are public). `react-app/README.md` rewritten for Vite.
+- **Files:** `react-app/package.json`, `react-app/package-lock.json`, new
+  `react-app/vite.config.js`, `react-app/index.html` (moved from `public/`),
+  `react-app/src/**/*.jsx` (renamed), `react-app/src/store/index.js`,
+  `react-app/src/components/reUsedComponents/PostGrid.jsx`, `react-app/README.md`,
+  `.env.example`, `Dockerfile`.
+- **How to verify:** `cd react-app && npm install && npm run build` -> built in ~0.2 s
+  (JS 216 kB, 67 kB gzipped). `npm audit` -> **0 vulnerabilities** (was 193).
+  Served the build from Flask (`gunicorn wsgi:app`): `/`, the hashed `/assets/*.js` and
+  `/favicon.ico` -> 200; CSRF login, feed and like over HTTP -> 200. With `npm run dev`
+  plus Flask, the same login/feed/like calls through `localhost:3000` work via the proxy.
+  Headless check (jsdom loading the built bundle from Flask): Demo Login -> home feed
+  with 31 images, Explore (50 images), a profile page, back home; no console errors.
+- **Things to watch (breaking for local runs):** use **`npm run dev`** (or `npm start`,
+  same thing) and **Node 22.12+**; drop any `NODE_OPTIONS=--openssl-legacy-provider`.
+  Delete your old `react-app/node_modules` and run `npm install` (the lockfile was
+  regenerated). Environment variables for the frontend must be `VITE_*`, read with
+  `import.meta.env`. Linting (`eslint`) came with CRA and is gone until P43. The 4.7 MB
+  `stock.jpg` is still bundled (P24). Deep-link refresh on the Flask-served build is
+  fixed in P18.

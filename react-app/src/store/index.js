@@ -1,5 +1,6 @@
 import { createStore, combineReducers, applyMiddleware, compose } from "redux";
 import thunk from "redux-thunk";
+import logger from "redux-logger";
 import postsReducer from "./post";
 import commentsReducer from "./comments";
 import session from "./session";
@@ -36,10 +37,10 @@ const rootReducer = combineReducers({
 
 let enhancer;
 
-if (process.env.NODE_ENV === "production") {
+// import.meta.env.PROD is Vite's replacement for CRA's process.env.NODE_ENV check.
+if (import.meta.env.PROD) {
   enhancer = applyMiddleware(thunk);
 } else {
-  const logger = require("redux-logger").default;
   const composeEnhancers =
     window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
   enhancer = composeEnhancers(applyMiddleware(thunk, logger));
