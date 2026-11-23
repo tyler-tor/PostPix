@@ -41,7 +41,9 @@ def create_app(config_name=None):
 
     # Extensions
     db.init_app(app)
-    migrate.init_app(app, db)
+    # render_as_batch: lets future migrations ALTER tables on SQLite too
+    # (SQLite can't alter constraints in place; Alembic rebuilds the table).
+    migrate.init_app(app, db, render_as_batch=True)
     login.init_app(app)
     login.login_view = 'auth.unauthorized'
     # (flask-cors was removed: the React build is served from the same origin as

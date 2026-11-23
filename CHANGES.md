@@ -81,6 +81,7 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 - **P11:** the plan said "own logo, colors and login layout"; done as a text wordmark + accent colour + demo note + new favicon; the larger layout change is left to P32.
 - **P14:** API timestamps were switched to ISO-8601 as the plan says; the frontend got a small `formatDate()` helper (the plan listed "frontend date formatting" without detail). `created_at`/`updated_at` also keep `default=func.now()` until P15 so the app keeps working on the old-migration schema between the two commits.
 - **P13:** installed SQLAlchemy 2.1.9 (newest; the plan named 2.0); all checks pass. Also touched the old `Dockerfile` (Python 3.12, `gunicorn wsgi:app` in P12, no separate psycopg2, echo off) and the README install steps so they are not broken before P33/P46.
+- **P15:** the plan said "add P6/P21 changes as new migrations" on top of the baseline; as instructed for Batch 2, the P6 unique constraint is folded **into** the baseline instead (no data to migrate). P21 indexes are still a future migration. Also added a constraint naming convention, `NOT NULL` on `follows` columns and `render_as_batch=True` (small, needed for clean future migrations).
 
 ---
 
@@ -618,3 +619,58 @@ Toolkit).
   external script that parsed the old HTTP-date format must switch. Dates show as a date
   only ("Nov 23, 2026"); "3 hours ago" style is a possible P31 polish. Seeded rows all get
   (nearly) the same timestamp now, because the database clock is read once per statement.
+
+## P15 — Remove the Heroku schema hack and reset migrations
+- **Problem:** Every model had `if environment == "production": __table_args__ =
+  {'schema': SCHEMA}` and `add_prefix_for_prod('users.id')` foreign keys, and
+  `migrations/env.py` created a Postgres schema and set `search_path` in production. That
+  existed only because App Academy's shared Heroku Postgres gave each student a schema; it
+  made every model harder to read and had broken deploys before. The migration history
+  was 4 old App Academy migrations (one empty, one swapping a `followers` table for
+  `follows`) plus the Batch 1 P6 migration, and two dead files (`app/models/follows.py`,
+  `app/seeds/follows.py`, fully commented out / importing a name that no longer exists).
+- **What changed:**
+  - Removed `environment`, `SCHEMA` and `add_prefix_for_prod` from `app/models/db.py`
+    and every model; foreign keys are plain `'users.id'` / `'posts.id'`. Removed the
+    schema/search_path code from `migrations/env.py` and `SCHEMA` from `.env.example`.
+  - Added a SQLAlchemy **naming convention** (`pk_`, `fk_`, `uq_`, `ix_`, `ck_` prefixes)
+    so every constraint has a predictable name that later migrations can refer to.
+  - `follows` columns are now `NOT NULL` and the pair has a named unique constraint
+    `uq_follows_follower_followed` (same rule as before, now with a name).
+  - Deleted all 5 old migrations and generated **one baseline**
+    `migrations/versions/0001_baseline_schema.py` (revision id `0001_baseline`) from the
+    models, then tidied it: `server_default=sa.func.now()` instead of the SQLite-specific
+    `CURRENT_TIMESTAMP` text so it is portable to Postgres. **The Batch 1 P6 rule is in the
+    baseline**: `post_likes` has `UNIQUE (user_id, post_id)` named
+    `uq_post_likes_user_post` (the old migration's duplicate-cleanup step is not needed on
+    an empty database).
+  - `TimestampMixin` drops the temporary `default=func.now()` from P14; the tables now
+    have `DEFAULT now()` themselves.
+  - `Migrate(..., render_as_batch=True)`: future migrations that alter constraints also
+    work on SQLite (Alembic rebuilds the table there).
+  - Deleted `app/models/follows.py` and `app/seeds/follows.py`.
+- **Files:** `app/models/{db,user,posts,comments,postLike}.py`, `app/__init__.py`,
+  `migrations/env.py`, `.env.example`, new `migrations/versions/0001_baseline_schema.py`;
+  deleted `migrations/versions/{356ea97f15e1_,8e380edbf296_,bd907f496434_,e66be29cbd54_,a1f3c9d2e7b4_unique_post_likes}.py`,
+  `app/models/follows.py`, `app/seeds/follows.py`.
+- **How to verify:** on an empty SQLite DB: `flask db upgrade` -> "Running upgrade ->
+  0001_baseline"; `flask db check` -> "No new upgrade operations detected" (models and
+  migration match); `flask db downgrade base && flask db upgrade` works; `flask seed all`
+  works. Postgres DDL checked offline with
+  `DATABASE_URL=postgresql://u:p@localhost/postpix flask db upgrade --sql`: shows
+  `TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL` and
+  `CONSTRAINT uq_post_likes_user_post UNIQUE (user_id, post_id)`. Test-client script
+  (P15, 5/5): constraint present, duplicate like rejected by the DB, alembic version is
+  `0001_baseline`, a raw SQL insert gets `created_at` from the server default. All earlier
+  scripts green.
+- **Things to watch (breaking for local runs):**
+  - **Existing local databases cannot be upgraded** (their `alembic_version` points at a
+    revision that no longer exists: "Can't locate revision ..."). Delete the old file
+    (`app/dev.db` or `instance/dev.db`) and run `flask db upgrade && flask seed all`.
+    There is no production database, so nothing real is lost.
+  - From now on, every schema change is a **new** migration on top of `0001_baseline`
+    (`flask db migrate -m "..."`, review the file, `flask db upgrade`). Never edit the
+    baseline once a real database uses it.
+  - The baseline was not run against a real Postgres server (none available here); the
+    generated Postgres SQL was reviewed instead. Run it once against the P34 compose
+    Postgres.

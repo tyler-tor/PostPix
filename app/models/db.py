@@ -1,39 +1,32 @@
-# models/db.py file
-
+"""The shared SQLAlchemy object and small model helpers."""
 from datetime import timezone
 
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import func
+from sqlalchemy import MetaData, func
 
-# add import and set variable to access flask environment
-import os
-environment = os.getenv("FLASK_ENV")
-SCHEMA = os.environ.get('SCHEMA')
+# Give every index and constraint a predictable name, so later migrations can
+# find and change them by name (Postgres and SQLite would otherwise invent
+# different names, or none).
+NAMING_CONVENTION = {
+    'ix': 'ix_%(column_0_label)s',
+    'uq': 'uq_%(table_name)s_%(column_0_name)s',
+    'ck': 'ck_%(table_name)s_%(constraint_name)s',
+    'fk': 'fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s',
+    'pk': 'pk_%(table_name)s',
+}
 
-
-db = SQLAlchemy()
-
-# add function to add a prefix to table names in production environment only
-def add_prefix_for_prod(attr):
-    if environment == "production":
-        return f"{SCHEMA}.{attr}"
-    else:
-        return attr
+db = SQLAlchemy(metadata=MetaData(naming_convention=NAMING_CONVENTION))
 
 
 class TimestampMixin:
     """Adds created_at / updated_at, filled by the database clock
-    (timezone-aware) instead of Python's local time.
-
-    server_default puts DEFAULT now() in the table definition (new migrations);
-    default=func.now() makes SQLAlchemy send now() itself, so inserts also work
-    on tables created by the old migrations, which have no server default.
+    (timezone-aware, DEFAULT now() in the table) instead of Python's local time.
+    updated_at is refreshed by SQLAlchemy on every UPDATE.
     """
     created_at = db.Column(db.DateTime(timezone=True), nullable=False,
-                           default=func.now(), server_default=func.now())
+                           server_default=func.now())
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False,
-                           default=func.now(), server_default=func.now(),
-                           onupdate=func.now())
+                           server_default=func.now(), onupdate=func.now())
 
 
 def iso(value):

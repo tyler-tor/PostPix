@@ -1,4 +1,4 @@
-from .db import db, environment, SCHEMA, add_prefix_for_prod, TimestampMixin, iso
+from .db import db, TimestampMixin, iso
 
 
 class PostLike(TimestampMixin, db.Model):
@@ -9,12 +9,10 @@ class PostLike(TimestampMixin, db.Model):
     __table_args__ = (
         db.UniqueConstraint('user_id', 'post_id', name='uq_post_likes_user_post'),
     )
-    if environment == "production":
-        __table_args__ = __table_args__ + ({'schema': SCHEMA},)
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey(add_prefix_for_prod('users.id')), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey(add_prefix_for_prod('posts.id')), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
 
     users = db.relationship('User', back_populates="post_likes", single_parent=True) #removed cascade here.
     posts = db.relationship('Post', back_populates='post_likes', single_parent=True) # here too

@@ -1,15 +1,12 @@
-from .db import db, environment, SCHEMA, add_prefix_for_prod, TimestampMixin, iso
+from .db import db, TimestampMixin, iso
 
 
 class Comment(TimestampMixin, db.Model):
     __tablename__ = 'comments'
 
-    if environment == "production":
-        __table_args__ = {'schema': SCHEMA}
-
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey(add_prefix_for_prod('users.id')), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey(add_prefix_for_prod('posts.id')), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
     body = db.Column(db.String(255))
 
     users = db.relationship('User', back_populates="comments", single_parent=True)
