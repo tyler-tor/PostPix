@@ -91,7 +91,7 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 1. **Home feed (P10):** should your own posts appear in your home feed (Instagram does)? Currently only followed users' posts are shown, same as before. It's a one-line change.
 2. **Branding (P11):** OK with the teal "postpix" wordmark and accent, or do you have preferred colours/logo for P32?
 3. **Repo name:** rename the GitHub repo from `Instagram-Group-Project` to something like `postpix` (GitHub redirects old URLs)? Avoids the trademark name in your portfolio URL.
-4. **Deep links (found during P11):** refreshing `/explore` on the Flask-served build returns 404 (pre-existing). Fix in P31/P33, or earlier as a small separate change?
+4. **Deep links (found during P11):** refreshing `/explore` on the Flask-served build returns 404 (pre-existing). Fix in P31/P33, or earlier as a small separate change? **Answered in Batch 2: fixed in P18.**
 
 ---
 
@@ -754,3 +754,54 @@ Toolkit).
   Network tab and in the redux-logger output; that is StrictMode, not a bug, and does
   not happen in the production build. react-router is still v5 here (works with React 19
   for these routes); P18 upgrades it.
+
+## P18 — Upgrade react-router v5 -> v7 (and fix deep-link refresh)
+- **Problem:** react-router v5 is unmaintained and not built for React 19. The route
+  table used `<Switch>`, a `ProtectedRoute` that wrapped `<Route>`, `useHistory` and
+  `<Redirect>`, and the catch-all `/:userId` swallowed every unknown URL (e.g. `/typo`
+  rendered an empty profile). Separately, **refreshing a deep link** such as `/explore`
+  on the Flask-served build returned **404** (Flask's `/<path>` static route answered
+  before the React catch-all; open question 4 from Batch 1).
+- **What changed:**
+  - `react-router-dom` 5 -> **`react-router` 7.18.6** (in v7 everything, including
+    `BrowserRouter` and `NavLink`, is imported from `react-router`; `react-router-dom` is
+    only a re-export). All imports updated.
+  - `App.jsx`: `<Switch>` -> `<Routes>` with `element={...}`. `/` renders the feed when
+    logged in and the login page otherwise. `/users`, `/explore` and `/:userId` sit
+    inside a **layout route** `<Route element={<ProtectedRoute />}>`. New `*` route shows
+    a new **NotFound** page (`components/NotFound/`).
+  - `ProtectedRoute.jsx` is now a layout route: `user ? <Outlet /> : <Navigate to="/"
+    replace />`.
+  - `useHistory()` -> `useNavigate()` (`history.push(x)` -> `navigate(x)`) in
+    `PostForm`, `SignUpForm`, `SearchBar`; `<Redirect to="/" />` -> `<Navigate to="/"
+    replace />` in `LoginForm`, `SignUpForm`, `TempLogin`, `EditCaptionForm`, `PostForm`.
+  - Profiles stay at `/:userId` (the plan's "keep /:userId" option, so no links change).
+    v7 ranks static paths (`/explore`, `/users`) above dynamic ones automatically, and
+    `UserProfile` shows the NotFound page when the id is not a number (`/typo`).
+  - **Deep-link fix (Flask):** the app is created with `static_folder=None` and
+    `react_root()` serves the build itself: an existing file under `react-app/build` is
+    sent with `send_from_directory` (which refuses `..` paths); a missing path that looks
+    like a file (has a `.` in the last segment, e.g. an old `/assets/index-abc.js`) is a
+    JSON 404; every other non-`/api` path gets `index.html`, so React Router handles
+    `/explore`, `/42` and its own 404 page. The build folder is configurable as
+    `FRONTEND_DIST` (default `react-app/build`).
+- **Files:** `react-app/package.json`, `react-app/package-lock.json`,
+  `react-app/src/App.jsx`, `react-app/src/components/reUsedComponents/ProtectedRoute.jsx`,
+  `react-app/src/components/UserProfile/index.jsx`, new
+  `react-app/src/components/NotFound/{index.jsx,NotFound.css}`, every component that
+  imported from `react-router-dom` (24 files, import path and the hooks above),
+  `app/__init__.py`.
+- **How to verify:** `npm run build` OK; `npm audit` 0. Served by Flask: `curl` of
+  `/explore`, `/1`, `/no-such-page` -> 200 (index.html); `/assets/nope.js` -> 404;
+  `/../app/config.py` (with `--path-as-is`) -> 404, no file leak; `/api/nope` -> JSON 404.
+  Headless jsdom runs: **loading `/explore` and `/1` directly (logged in)** render the
+  explore grid (50 images) and Demo's profile; `/no-such-page` and `/a/b/c` render "Page
+  not found"; `/explore` logged out redirects to the login page; the full click-through
+  (login, feed, explore, post modal like + comment, profile, logout) still passes with no
+  console errors. Backend test-client scripts all green.
+- **Things to watch:** `NavLink` still adds an `active` class (no CSS uses it). A numeric
+  id that does not exist (`/99999`) still renders an empty profile shell (the API returns
+  404); a proper "user not found" state is P31. If you later add a real route that
+  contains a dot (e.g. `/u/john.doe`), adjust the "looks like a file" rule in
+  `react_root()`. Data loading still happens in components (`useEffect`), not in v7
+  loaders; that could come with P19/P31.

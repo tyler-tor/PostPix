@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink } from "react-router";
 import { useDispatch,useSelector } from "react-redux";
 import { HiOutlineUserCircle } from "react-icons/hi";
 import { FaHandLizard, FaUserCircle } from "react-icons/fa";

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { NavLink, useHistory } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router";
 import { getAllUsers } from "../../store/users";
 import { setSearchUsers } from "../../store/search_users";
 import "./SearchBar.css";
@@ -13,7 +13,7 @@ const SearchBar = () => {
   const [hasInputted, setHasInputted] = useState(false);
 
   const dispatch = useDispatch();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   useEffect(() => {
     dispatch(getAllUsers()).then(() => {
@@ -50,7 +50,7 @@ const SearchBar = () => {
     });
     // console.log(res);
     dispatch(setSearchUsers(res));
-    // history.push('/search')
+    // navigate('/search')
   };
 
   //TODO when user clicks search, redirect to new page with a list of users that match search.

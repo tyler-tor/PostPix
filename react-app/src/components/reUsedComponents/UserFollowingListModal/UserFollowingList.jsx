@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { NavLink } from "react-router-dom";
+import { NavLink } from "react-router";
 import { getAllFollowers } from "../../../store/follower";
 import { getAllFollowing } from "../../../store/following";
 import { getProfileUser } from "../../../store/profileUser";

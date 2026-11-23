@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { Redirect } from "react-router-dom";
+import { Navigate } from "react-router";
 import { login } from "../../store/session";
 import Wordmark from "../Brand/Wordmark";
 
@@ -32,7 +32,7 @@ const LoginForm = () => {
   };
 
   if (user) {
-    return <Redirect to="/" />;
+    return <Navigate to="/" replace />;
   }
 
   return (

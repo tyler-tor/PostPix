@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink } from "react-router";
 import { Modal } from "../../context/Modal";
 import "./SinglePostModal.css";
 import { useSelector, useDispatch } from "react-redux";

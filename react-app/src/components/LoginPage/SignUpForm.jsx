@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { Redirect } from "react-router-dom";
+import { Navigate } from "react-router";
 import { signUp } from "../../store/session";
-import { useHistory } from "react-router-dom";
+import { useNavigate } from "react-router";
 // import ImageUploadComponent from "../NavBar/ImageUploadComponent/ImageUploadComponent";
 import ProPicImageUpload from "./ProPicImageUpload";
 import Wordmark from "../Brand/Wordmark";
@@ -17,7 +17,7 @@ const SignUpForm = () => {
   const [repeatPassword, setRepeatPassword] = useState("");
   const [image, setImage] = useState(null);
   const user = useSelector((state) => state.session.user);
-  const history = useHistory()
+  const navigate = useNavigate()
   const dispatch = useDispatch();
 
   const onSignUp = async (e) => {
@@ -29,7 +29,7 @@ const SignUpForm = () => {
       }
       else{
 
-        history.push('/explore')
+        navigate('/explore')
 
       }
     }else{
@@ -65,7 +65,7 @@ const SignUpForm = () => {
   };
 
   if (user) {
-    return <Redirect to="/" />;
+    return <Navigate to="/" replace />;
   }
 
   return (

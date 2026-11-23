@@ -3,7 +3,7 @@ import "./PostGrid.css";
 import SinglePostModal from "./SinglePostModal";
 import stock from "../../images/stock.jpg";
 import { useSelector, useDispatch } from "react-redux";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { getAllPosts } from "../../store/post";
 
 const PostGrid = () => {

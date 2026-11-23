@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink } from "react-router";
 import ProfileDropDownMenu from "./ProfileDropDownMenu";
 import Wordmark from "../Brand/Wordmark";
 import SearchBar from "./SearchBar";

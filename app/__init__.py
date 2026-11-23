@@ -5,7 +5,9 @@ Use the app factory: `create_app()` builds a new, fully configured app.
   * gunicorn uses `wsgi:app` (see wsgi.py).
   * tests call `create_app('testing')` to get a fresh copy with test settings.
 """
-from flask import Flask
+import os
+
+from flask import Flask, send_from_directory
 from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect, CSRFError, generate_csrf
@@ -36,7 +38,12 @@ def unauthorized():
 def create_app(config_name=None):
     """Build the app. config_name: 'development', 'testing' or 'production'
     (default: the FLASK_ENV environment variable, else 'development')."""
-    app = Flask(__name__, static_folder='../react-app/build', static_url_path='/')
+    # static_folder=None: the React build is served by react_root() below, so
+    # Flask's own /<path> static route can't answer deep links like /explore
+    # with a 404 before the React app gets a chance to handle them.
+    app = Flask(__name__, static_folder=None)
+    app.config.setdefault('FRONTEND_DIST', os.path.abspath(
+        os.path.join(app.root_path, '..', 'react-app', 'build')))
     app.config.from_object(get_config(config_name))
 
     # Extensions
@@ -99,8 +106,17 @@ def create_app(config_name=None):
         # Unknown /api/... URLs are real 404s, not the React page.
         if path.startswith('api/'):
             return {'errors': ['Not found']}, 404
-        if path == 'favicon.ico':
-            return app.send_static_file('favicon.ico')
-        return app.send_static_file('index.html')
+        dist = app.config['FRONTEND_DIST']
+        # Real files from the build (assets/*.js, favicon.ico, ...) are sent as-is.
+        # send_from_directory refuses paths that try to leave the folder.
+        if path and os.path.isfile(os.path.join(dist, path)):
+            return send_from_directory(dist, path)
+        # A missing *file* (e.g. an old /assets/index-abc123.js) is a real 404;
+        # serving index.html there would confuse the browser.
+        if '.' in path.rsplit('/', 1)[-1]:
+            return {'errors': ['Not found']}, 404
+        # Every other URL (/, /explore, /42, /no-such-page) gets index.html and
+        # React Router decides what to show, including its own 404 page.
+        return send_from_directory(dist, 'index.html')
 
     return app

@@ -1,12 +1,12 @@
 import React from "react";
 import { useSelector } from "react-redux";
-import { Route, Redirect } from "react-router-dom";
+import { Navigate, Outlet } from "react-router";
 
-const ProtectedRoute = (props) => {
+// Layout route: renders the matching child route (<Outlet />) for logged-in
+// users and sends everyone else to the login page at "/".
+const ProtectedRoute = () => {
   const user = useSelector((state) => state.session.user);
-  return (
-    <Route {...props}>{user ? props.children : <Redirect to="/" />}</Route>
-  );
+  return user ? <Outlet /> : <Navigate to="/" replace />;
 };
 
 export default ProtectedRoute;

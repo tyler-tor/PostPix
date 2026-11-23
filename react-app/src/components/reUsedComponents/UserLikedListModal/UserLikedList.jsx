@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { getLikesUser } from "../../../store/user_likes";
-import { NavLink } from "react-router-dom";
+import { NavLink } from "react-router";
 import "./UserLikedList.css";
 import { getAllFollowers } from "../../../store/follower";
 import { getAllFollowing } from "../../../store/following";

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { BrowserRouter, Route, Switch } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router";
 import { useDispatch } from "react-redux";
 import LoginPage from "./components/LoginPage";
 import SignUpForm from "./components/LoginPage/SignUpForm";
@@ -15,6 +15,7 @@ import { useSelector } from "react-redux";
 import HomeFeed from "./components/HomeFeed";
 import UserProfile from "./components/UserProfile";
 import ExplorePage from "./components/ExplorePage";
+import NotFound from "./components/NotFound";
 
 function App() {
   const [loaded, setLoaded] = useState(false);
@@ -35,27 +36,18 @@ function App() {
   return (
     <BrowserRouter>
       {user && <NavBar />}
-      <Switch>
-        <ProtectedRoute path="/users" exact={true}>
-          <UsersList />
-        </ProtectedRoute>
-        <ProtectedRoute path="/explore" exact={true}>
-          <ExplorePage />
-        </ProtectedRoute>
-        <ProtectedRoute path="/:userId" exact={true}>
-          {/* <ExplorePage /> */}
-          <UserProfile />
-        </ProtectedRoute>
-        {user ? (
-          <Route path="/" exact={true}>
-            <HomeFeed />
-          </Route>
-        ) : (
-          <Route path="/" exact={true}>
-            <LoginPage />
-          </Route>
-        )}
-      </Switch>
+      <Routes>
+        {/* "/" is the feed when logged in, the login page otherwise. */}
+        <Route path="/" element={user ? <HomeFeed /> : <LoginPage />} />
+        {/* Everything inside needs a logged-in user (see ProtectedRoute). */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/users" element={<UsersList />} />
+          <Route path="/explore" element={<ExplorePage />} />
+          {/* Static paths like /explore always win over this dynamic one. */}
+          <Route path="/:userId" element={<UserProfile />} />
+        </Route>
+        <Route path="*" element={<NotFound />} />
+      </Routes>
     </BrowserRouter>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useEffect} from "react"
-import { NavLink } from "react-router-dom"
+import { NavLink } from "react-router"
 import { useSelector, useDispatch } from "react-redux"
 import { getNonFollowing } from "../../store/nonFollowed"
 import './SideNonFollow.css'

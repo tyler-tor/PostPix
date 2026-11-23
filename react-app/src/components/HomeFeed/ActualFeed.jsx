@@ -3,7 +3,7 @@ import { AiOutlineHeart, AiFillHeart } from "react-icons/ai";
 import { FaUserCircle } from "react-icons/fa";
 import { FaRegSmile } from "react-icons/fa";
 import PostSettingsModal from "./PostSettingsModal";
-import { NavLink } from "react-router-dom";
+import { NavLink } from "react-router";
 import { useSelector, useDispatch } from "react-redux";
 import { getAllFollowingPosts } from "../../store/followingPosts";
 import SinglePostModal from "../reUsedComponents/SinglePostModal";

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import PostGrid from "../reUsedComponents/PostGrid";
 import { useSelector, useDispatch } from "react-redux";
-import { useParams, useHistory } from "react-router-dom";
+import { useParams } from "react-router";
 import { getAllUsers } from "../../store/users";
 import UserFollowerListModal from "../reUsedComponents/UserFollowerListModal";
 import {

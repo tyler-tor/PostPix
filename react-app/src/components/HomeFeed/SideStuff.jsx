@@ -1,5 +1,5 @@
 import React from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink } from "react-router";
 import { useSelector } from "react-redux";
 import SideNonFollowedUsers from "./SideNonFollowedUsers";
 import { AiFillGithub, AiFillLinkedin } from "react-icons/ai";
@@ -7,10 +7,10 @@ import "./HomeFeed.css";
 
 const SideStuff = () => {
   const user = useSelector((state) => state.session.user);
-  // const history = useHistory()
+  // const navigate = useNavigate()
 
   // const redirectGithub = () => {
-  //   history.push('https://github.com/tyler-tor/Instagram-Group-Project')
+  //   navigate('https://github.com/tyler-tor/Instagram-Group-Project')
   // }
 
   return (
