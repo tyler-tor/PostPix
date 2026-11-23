@@ -1,27 +1,25 @@
+"""Postpix Flask application.
+
+Use the app factory: `create_app()` builds a new, fully configured app.
+  * `flask ...` commands find it automatically (FLASK_APP=app).
+  * gunicorn uses `wsgi:app` (see wsgi.py).
+  * tests call `create_app('testing')` to get a fresh copy with test settings.
+"""
 from flask import Flask
+from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect, CSRFError, generate_csrf
-from flask_login import LoginManager
 
-from .models import db, User
-from .api.user_routes import user_routes
-from .api.auth_routes import auth_routes
-from .api.post_routes import post_routes
-from .api.me_routes import me_routes
-from .api.comment_routes import comment_routes
-from .api.img_routes import img_routes
-
-from .seeds import seed_commands
-
-from .config import Config, IS_PRODUCTION
+from .config import get_config
 from .errors import register_error_handlers
+from .models import db, User
 
-
-app = Flask(__name__, static_folder='../react-app/build', static_url_path='/')
-
-# Setup login manager
-login = LoginManager(app)
-login.login_view = 'auth.unauthorized'
+# Extensions are created once here and attached to each app in create_app().
+login = LoginManager()
+migrate = Migrate()
+# Check a CSRF token on every POST/PUT/PATCH/DELETE (not just routes that use a
+# WTForm). The frontend sends the token in the X-CSRFToken header (apiFetch.js).
+csrf = CSRFProtect()
 
 
 @login.user_loader
@@ -35,57 +33,72 @@ def unauthorized():
     return {'errors': ['Unauthorized']}, 401
 
 
-# Tell flask about our seed commands
-app.cli.add_command(seed_commands)
+def create_app(config_name=None):
+    """Build the app. config_name: 'development', 'testing' or 'production'
+    (default: the FLASK_ENV environment variable, else 'development')."""
+    app = Flask(__name__, static_folder='../react-app/build', static_url_path='/')
+    app.config.from_object(get_config(config_name))
 
-app.config.from_object(Config)
-app.register_blueprint(user_routes, url_prefix='/api/users')
-app.register_blueprint(auth_routes, url_prefix='/api/auth')
-app.register_blueprint(post_routes, url_prefix='/api/posts')
-app.register_blueprint(me_routes, url_prefix='/api/me')
-app.register_blueprint(comment_routes, url_prefix='/api/comments')
-app.register_blueprint(img_routes, url_prefix='/api/img')
-db.init_app(app)
-Migrate(app, db)
+    # Extensions
+    db.init_app(app)
+    migrate.init_app(app, db)
+    login.init_app(app)
+    login.login_view = 'auth.unauthorized'
+    # (flask-cors was removed: the React build is served from the same origin as
+    # the API, so cross-origin requests are not needed and should not be allowed.)
+    csrf.init_app(app)
 
-# Application Security
-# (flask-cors was removed: the React build is served from the same origin as
-# the API, so cross-origin requests are not needed and should not be allowed.)
-# Check a CSRF token on every POST/PUT/PATCH/DELETE (not just routes that use a
-# WTForm). The frontend sends the token in the X-CSRFToken header (apiFetch.js).
-csrf = CSRFProtect(app)
+    # Blueprints (imported here so importing the package stays cheap and free
+    # of circular imports).
+    from .api.user_routes import user_routes
+    from .api.auth_routes import auth_routes
+    from .api.post_routes import post_routes
+    from .api.me_routes import me_routes
+    from .api.comment_routes import comment_routes
+    from .api.img_routes import img_routes
+    app.register_blueprint(user_routes, url_prefix='/api/users')
+    app.register_blueprint(auth_routes, url_prefix='/api/auth')
+    app.register_blueprint(post_routes, url_prefix='/api/posts')
+    app.register_blueprint(me_routes, url_prefix='/api/me')
+    app.register_blueprint(comment_routes, url_prefix='/api/comments')
+    app.register_blueprint(img_routes, url_prefix='/api/img')
 
+    # `flask seed ...` commands
+    from .seeds import seed_commands
+    app.cli.add_command(seed_commands)
 
-register_error_handlers(app)
+    register_error_handlers(app)
 
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(e):
+        return {'errors': [f'CSRF check failed: {e.description}']}, 400
 
-@app.errorhandler(CSRFError)
-def handle_csrf_error(e):
-    return {'errors': [f'CSRF check failed: {e.description}']}, 400
+    @app.after_request
+    def inject_csrf_token(response):
+        response.set_cookie(
+            'csrf_token',
+            generate_csrf(),
+            secure=app.config['IS_PRODUCTION'],
+            samesite='Lax',
+            # Must be readable by JavaScript so apiFetch can copy it into the
+            # X-CSRFToken header. The token alone is not a secret: an attacker's
+            # site cannot read our cookies, which is what makes this safe.
+            httponly=False)
+        return response
 
+    @app.route('/api/health')
+    def health():
+        # Used by Docker / load balancer health checks. No login, no DB.
+        return {'status': 'ok'}
 
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def react_root(path):
+        # Unknown /api/... URLs are real 404s, not the React page.
+        if path.startswith('api/'):
+            return {'errors': ['Not found']}, 404
+        if path == 'favicon.ico':
+            return app.send_static_file('favicon.ico')
+        return app.send_static_file('index.html')
 
-
-@app.after_request
-def inject_csrf_token(response):
-    response.set_cookie(
-        'csrf_token',
-        generate_csrf(),
-        secure=IS_PRODUCTION,
-        samesite='Lax',
-        # Must be readable by JavaScript so apiFetch can copy it into the
-        # X-CSRFToken header. The token alone is not a secret: an attacker's
-        # site cannot read our cookies, which is what makes this safe.
-        httponly=False)
-    return response
-
-
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def react_root(path):
-    # Unknown /api/... URLs are real 404s, not the React page.
-    if path.startswith('api/'):
-        return {'errors': ['Not found']}, 404
-    if path == 'favicon.ico':
-        return app.send_static_file('favicon.ico')
-    return app.send_static_file('index.html')
+    return app

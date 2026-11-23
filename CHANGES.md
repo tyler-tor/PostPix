@@ -478,3 +478,36 @@ Toolkit).
   longer reset, on Postgres a reset gives new, higher ids; any bookmarked URL like
   `/posts/5` may point elsewhere afterwards (local only). `app/seeds/follows.py` (dead,
   commented model) is removed in P15.
+
+## P12 — Refactor to an app factory with config classes
+- **Problem:** `app/__init__.py` built one global `app` at import time and `app/config.py`
+  read `SECRET_KEY` / `DATABASE_URL` while being imported, so simply importing the package
+  could crash, tests could not create a fresh app with different settings, and there was
+  only one `Config` class for every environment.
+- **What changed:** `app/__init__.py` now has `create_app(config_name=None)`, which builds
+  a new app, attaches the extensions (`db`, `Migrate`, `LoginManager`, `CSRFProtect`,
+  created once at module level and `init_app`-ed), registers the blueprints, the
+  `flask seed` commands, the JSON error handlers, the CSRF cookie hook and the React
+  catch-all. `app/config.py` has `Config` (shared settings), `DevConfig` (SQLite
+  `dev.db` and a random key if none is set), `TestConfig` (in-memory SQLite or
+  `TEST_DATABASE_URL`, CSRF off, `TESTING=True`) and `ProdConfig` (secure cookies, refuses
+  to start without `SECRET_KEY` or `DATABASE_URL`). Environment variables are read when
+  the app is created, not when the module is imported. The class is picked by the
+  argument or by `FLASK_ENV` (`development` default, `testing`, `production`). New
+  `wsgi.py` (`app = create_app()`) for gunicorn; new `GET /api/health` -> `{"status":"ok"}`
+  (no login, no DB) for Docker/CloudFront health checks. The seed commands read
+  `IS_PRODUCTION` from the app config.
+- **Files:** `app/__init__.py`, `app/config.py`, new `wsgi.py`, `app/seeds/__init__.py`,
+  `Dockerfile` (CMD `gunicorn app:app` -> `gunicorn wsgi:app`, otherwise untouched until
+  P33).
+- **How to verify:** `flask routes` / `flask db upgrade` / `flask seed all` still work
+  with `FLASK_APP=app` (Flask finds `create_app` automatically).
+  `curl localhost:5000/api/health` -> `{"status":"ok"}`. `python -c "import app"` with no
+  env vars works; `FLASK_ENV=production SECRET_KEY= python -c "from app import
+  create_app; create_app()"` -> "SECRET_KEY is not set". Ran `gunicorn wsgi:app` and
+  curled `/api/health` (200) and `/api/posts/` (401 logged out). Test-client scripts:
+  new P12 script 8/8 (health, testing config, import without env, prod fail-fast, wsgi),
+  plus all earlier scripts green.
+- **Things to watch:** anything that did `from app import app` must now call
+  `create_app()` (only the old Dockerfile did). `migrations/env.py` did not need changes
+  for the factory (it uses `current_app`); it is cleaned up in P15.

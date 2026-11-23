@@ -6,9 +6,8 @@ Rules (see CHANGES.md, P0):
 - `flask seed all --reset` and `flask seed undo` DELETE all data. They are for
   local development only and refuse to run in production.
 """
-import os
-
 import click
+from flask import current_app
 from flask.cli import AppGroup
 from sqlalchemy import delete, func, select
 
@@ -25,7 +24,7 @@ seed_commands = AppGroup('seed')
 
 
 def _is_production():
-    return os.environ.get('FLASK_ENV') == 'production'
+    return current_app.config['IS_PRODUCTION']
 
 
 def _refuse_in_production(command):
