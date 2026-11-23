@@ -3,7 +3,7 @@ from app.models import User, db, Post
 from app.forms import LoginForm
 from app.forms import SignUpForm
 from flask_login import current_user, login_user, logout_user, login_required
-from app.s3_helpers import (upload_file_to_s3, allowed_file, get_unique_filename)
+from app.s3_helpers import process_and_upload_image
 
 auth_routes = Blueprint('auth', __name__)
 
@@ -70,12 +70,9 @@ def sign_up():
         profile_picture = None
         image = request.files.get('image')
         if image and image.filename:
-            if not allowed_file(image.filename):
-                return {'errors': ['image : file type not permitted']}, 400
-            image.filename = get_unique_filename(image.filename)
-            upload = upload_file_to_s3(image)
+            upload = process_and_upload_image(image)
             if 'url' not in upload:
-                return {'errors': ['image : upload failed, try again or skip the picture']}, 400
+                return {'errors': [f"image : {upload['errors']}"]}, upload.get('status', 400)
             profile_picture = upload['url']
 
         user = User(

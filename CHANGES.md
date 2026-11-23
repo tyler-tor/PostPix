@@ -247,3 +247,37 @@ _None yet._
   1; the counter is kept but now always matches. The migration was added on top of the
   existing chain; P15 (reset migrations) should fold the constraint into the new initial
   migration. The `flask seed all` production branch still uses raw SQL strings (fixed in P14).
+
+## P7 — Harden image uploads
+- **Problem:** No size limit (one huge upload could eat server memory and S3 money). Only
+  the file **name** was checked, so `evil.html` renamed to `evil.jpg` was accepted, and
+  the S3 `Content-Type` came from the browser's claim (could be `text/html`, which turns
+  a bucket into a phishing/XSS host). PDFs were allowed for no reason. A typo built names
+  like `abc123,jpg` (comma instead of dot). URLs were `http://`, and every upload sent
+  `ACL='public-read'`, which **fails** on S3 buckets created since April 2023 (ACLs are
+  disabled by default), so uploads would break on any new bucket.
+- **What changed:** `MAX_CONTENT_LENGTH = 10 MB` (bigger requests get a JSON **413**).
+  Allowed types are jpg/jpeg/png/webp/gif. Each file is opened with **Pillow** and
+  `verify()`'d; the real detected format decides the extension and `ContentType`
+  (a PNG named `.jpg` is stored as `.png`). Very large pixel counts (decompression bombs)
+  are refused. Keys are `uploads/<random-uuid>.<ext>`. The ACL argument was removed;
+  URLs are `https://`, using `S3_PUBLIC_URL_BASE` if set (for CloudFront later) or
+  `https://<bucket>.s3.amazonaws.com/`. All the logic lives in one helper,
+  `process_and_upload_image()`, used by both `/api/img/upload` and signup. S3 errors are
+  logged on the server and the client only sees "upload failed" (502). The file pickers
+  only offer the four allowed types.
+- **Files:** `app/s3_helpers.py`, `app/api/img_routes.py`, `app/api/auth_routes.py`,
+  `app/config.py`, `requirements.txt` (adds `Pillow==10.4.0`),
+  `react-app/src/components/NavBar/ImageUploadComponent/ImageUploadComponent.js`,
+  `react-app/src/components/LoginPage/ProPicImageUpload.js`.
+- **How to verify:** Logged in, upload a real PNG -> 200 with
+  `https://.../uploads/<uuid>.png`. Upload a text/HTML file renamed `.jpg` -> 400
+  "file is not a valid image". Upload an 11 MB file -> 413. Upload a PDF -> 400.
+  Tested with the S3 call mocked (no real bucket): 7/7 checks, including signup with a
+  picture.
+- **Things to watch / follow-ups:** **Not tested against real S3** (no bucket/keys in this
+  environment). Without the ACL, a new bucket needs a bucket policy allowing public
+  `s3:GetObject` on `uploads/*` **or** (better, P37) CloudFront with OAC; otherwise
+  uploads succeed but images show as broken (403). Run `pip install -r requirements.txt`
+  to get Pillow. `Pipfile`/`Pipfile.lock` were not updated (they are replaced in P13).
+  Resizing/WebP conversion is P24.

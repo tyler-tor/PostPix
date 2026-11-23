@@ -11,3 +11,5 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         'DATABASE_URL').replace('postgres://', 'postgresql://')
     SQLALCHEMY_ECHO = True
+    # Reject request bodies (uploads) over 10 MB with 413 Payload Too Large.
+    MAX_CONTENT_LENGTH = 10 * 1024 * 1024

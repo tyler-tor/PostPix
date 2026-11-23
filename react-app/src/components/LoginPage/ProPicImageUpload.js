@@ -21,7 +21,7 @@ function ProPicImageUpload({ setImage }) {
     return (
         <div className="signup-propic-wrapper">
             <div className="supp-input-btn-wrapper">
-                <input type='file' accept='image/*' onChange={updateImage} />
+                <input type='file' accept='image/jpeg,image/png,image/webp,image/gif' onChange={updateImage} />
             </div>
             {previewUrl && (
                 <img src={previewUrl} alt='Your profile picture preview' className='supp-prev-img' />
