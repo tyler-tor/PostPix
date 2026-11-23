@@ -40,7 +40,7 @@ def update_comment(id):
             }
             comment_dict['myComment'] = True;
             return comment_dict
-        return {'errors': validation_errors_to_error_messages(form.errors)}, 401
+        return {'errors': validation_errors_to_error_messages(form.errors)}, 400
     return {'errors': ['This comment does not belong to you!']}, 403
 
 

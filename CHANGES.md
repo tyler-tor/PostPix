@@ -62,7 +62,7 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 
 ## Deviations from plan
 
-_None yet._
+- **P5:** used `Model.query.get_or_404()` (works on the current Flask-SQLAlchemy 2.5) instead of `db.get_or_404()` (Flask-SQLAlchemy 3). Switch in P14.
 
 ---
 
@@ -167,3 +167,37 @@ _None yet._
   needs one page load. `curl` testing now needs the cookie and header: first
   `curl -c jar localhost:5000/api/auth/`, then send `-b jar -H "X-CSRFToken: <cookie value>"`.
   SameSite is still `Strict` in production / unset in dev; P9 changes it to `Lax`.
+
+## P5 — Consistent error handling and 404s
+- **Problem:** Many ordinary mistakes produced `500 Internal Server Error`:
+  `GET /api/posts/<missing id>` called `.to_dict()` on `None`; `GET /api/users/<missing>`
+  and `/followers` did the same; `/following`, `/notfollowing`, `/follow`, `/likes` and
+  unfollow/unlike simply **returned nothing** when the user/post was missing or you were
+  not following (Flask turns a `None` return into a 500); commenting on a missing post
+  crashed. "Already following" returned `200` with an `error` key, which made the
+  frontend crash (`data.followingUser` was undefined). Validation errors used `401`
+  (which means "not logged in"). Logged-out API calls were **redirected** (302) instead of
+  getting a 401. Unknown `/api/...` URLs returned the React HTML page. Two comment
+  fetches used a relative path (`api/comments/...`), which breaks on nested pages like
+  `/users/3` (the browser requests `/users/api/comments/...`).
+- **What changed:** New `app/errors.py` registers JSON error handlers so every API error
+  is `{"errors": ["message"]}` with the right status (400/401/403/404/405/409/413/500);
+  unexpected exceptions are logged server-side and return a generic 500 (no traceback
+  leaks). Flask-Login's unauthorized handler returns a JSON 401. Unknown `/api/*` paths
+  return a JSON 404. Every route now always returns a response: 404 for missing
+  posts/users, 409 for "already following" / "not following", 404 for unliking a post you
+  did not like. Form validation errors return **400**. Comment fetch paths now start
+  with `/`. (The `delete_user` `TypeError` was already fixed by the owner check in P3.)
+- **Files:** new `app/errors.py`, `app/__init__.py`, `app/api/post_routes.py`,
+  `app/api/user_routes.py`, `app/api/comment_routes.py`, `app/api/auth_routes.py`,
+  `react-app/src/store/comments.js`.
+- **How to verify:** Logged in as demo: `GET /api/posts/99999` -> 404
+  `{"errors":["Post not found"]}`; `GET /api/users/99999/following` -> 404;
+  `POST /api/users/2/follow` (already followed) -> 409; `GET /api/nope` -> 404 JSON;
+  `PUT /api/posts/1` with an empty caption -> 400. Logged out: `GET /api/posts/` -> 401
+  `{"errors":["Unauthorized"]}`. Test-client script: 20/20 checks, plus P3/P4 re-run.
+- **Things to watch / follow-ups:** Used `Model.query.get_or_404()` (Flask-SQLAlchemy 2.x)
+  instead of the plan's `db.get_or_404()` (Flask-SQLAlchemy 3, Batch 2); swap during P14.
+  The frontend still mostly ignores error bodies (no toast/message); P31 adds proper
+  error states. In debug/testing mode unexpected exceptions are re-raised so you still
+  see the traceback locally.

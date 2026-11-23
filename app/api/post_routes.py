@@ -35,15 +35,14 @@ def posts():
 @post_routes.route('/<int:id>', methods=['GET'])
 @login_required
 def get_post_by_id(id):
-    post = Post.query.get(id)
+    post = Post.query.get_or_404(id, description='Post not found')
     post_dict = post.to_dict()
-    if post :
-        user = User.query.get(post.user_id)
-        post_dict['users'] = {
-            'profilePicture' : user.profile_picture,
-            'userId' : user.id,
-            'username' : user.username
-        }
+    user = post.users
+    post_dict['users'] = {
+        'profilePicture' : user.profile_picture,
+        'userId' : user.id,
+        'username' : user.username
+    }
     return post_dict
 
 @post_routes.route('/', methods=['POST'])
@@ -69,7 +68,7 @@ def create_post():
             'username' : user.username
         }
         return post_dict
-    return {'errors': validation_errors_to_error_messages(form.errors)}, 401
+    return {'errors': validation_errors_to_error_messages(form.errors)}, 400
 
 
 @post_routes.route('/<int:id>', methods=['PUT'])
@@ -94,7 +93,7 @@ def update_post(id):
             'username' : user.username
         }
         return post_dict
-    return {'errors': validation_errors_to_error_messages(form.errors)}, 401
+    return {'errors': validation_errors_to_error_messages(form.errors)}, 400
 
 
 @post_routes.route('/<int:id>', methods=['DELETE'])
@@ -128,7 +127,7 @@ def get_user_liked(id):
             post_user_dict['user'].append({'id':user['id'], 'username':user['username'], 'profilePicture':user['profilePicture']})
             # print(user)
         return post_user_dict
-    return {'errors': 'This post does not exist'}, 404
+    return {'errors': ['Post not found']}, 404
 
 @post_routes.route('/<int:id>/likes', methods=['POST'])
 @login_required
@@ -154,7 +153,7 @@ def like_post(id):
 
 
         return {'likes' : post.likes, 'postId' : post.id }
-    return{'errors': 'This post does not exist'}, 404
+    return {'errors': ['Post not found']}, 404
 
 @post_routes.route('/<int:id>/likes', methods=['DELETE'])
 @login_required
@@ -179,7 +178,8 @@ def unlike_post(id):
                 #! update return with full user dict.
                 # print('DELETE LIKE ENDPOINT---------------------------------------------', curr_post_dict)
                 return {'postId': post_dict['postId'], 'likes' : curr_post_dict['likes']}
-        return {'errors' : 'coult not find post'}
+        return {'errors' : ['You have not liked this post']}, 404
+    return {'errors': ['Post not found']}, 404
 
 
 @post_routes.route('/<int:id>/comments')
@@ -199,13 +199,13 @@ def comments_on_post(id):
                 comment['myComment'] = True
 
         return comments_dict
-    return {'errors': 'This post does not exist'}
+    return {'errors': ['Post not found']}, 404
 
 
 @post_routes.route('/<int:id>/comments', methods=['POST'])
 @login_required
 def create_comment_post(id):
-    post = Post.query.get(id)
+    post = Post.query.get_or_404(id, description='Post not found')
     user = User.query.get(current_user.id)
     form = CreateComment()
     user = user.to_dict()
@@ -226,4 +226,4 @@ def create_comment_post(id):
             'profilePicture' : user['profilePicture']
         }
         return comment_dict
-    return {'errors': form.errors}, 401
+    return {'errors': validation_errors_to_error_messages(form.errors)}, 400

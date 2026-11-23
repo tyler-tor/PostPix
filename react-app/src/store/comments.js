@@ -60,7 +60,7 @@ export const postComment = (comment) => async (dispatch) => {
 
 export const updateComment = (payload) => async (dispatch) => {
   const { commentId, body } = payload;
-  const response = await apiFetch(`api/comments/${commentId}`, {
+  const response = await apiFetch(`/api/comments/${commentId}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -95,7 +95,7 @@ export const updateComment = (payload) => async (dispatch) => {
 };
 
 export const deleteComment = (commentId) => async (dispatch) => {
-  const response = await apiFetch(`api/comments/${commentId}`, {
+  const response = await apiFetch(`/api/comments/${commentId}`, {
     method: "DELETE",
   });
   // console.log(response);

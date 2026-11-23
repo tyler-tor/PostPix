@@ -16,6 +16,7 @@ from .api.img_routes import img_routes
 from .seeds import seed_commands
 
 from .config import Config
+from .errors import register_error_handlers
 
 
 app = Flask(__name__, static_folder='../react-app/build', static_url_path='/')
@@ -28,6 +29,12 @@ login.login_view = 'auth.unauthorized'
 @login.user_loader
 def load_user(id):
     return User.query.get(int(id))
+
+
+@login.unauthorized_handler
+def unauthorized():
+    # Logged-out API calls get a JSON 401 instead of a redirect.
+    return {'errors': ['Unauthorized']}, 401
 
 
 # Tell flask about our seed commands
@@ -48,6 +55,9 @@ CORS(app)
 # Check a CSRF token on every POST/PUT/PATCH/DELETE (not just routes that use a
 # WTForm). The frontend sends the token in the X-CSRFToken header (apiFetch.js).
 csrf = CSRFProtect(app)
+
+
+register_error_handlers(app)
 
 
 @app.errorhandler(CSRFError)
@@ -89,6 +99,9 @@ def inject_csrf_token(response):
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def react_root(path):
+    # Unknown /api/... URLs are real 404s, not the React page.
+    if path.startswith('api/'):
+        return {'errors': ['Not found']}, 404
     if path == 'favicon.ico':
         return app.send_static_file('favicon.ico')
     return app.send_static_file('index.html')

@@ -27,7 +27,7 @@ def users():
 @login_required
 def user(id):
     #included all posts by the user in the return, it will be useful for looking at profile pages.
-    user = User.query.get(id)
+    user = User.query.get_or_404(id, description='User not found')
     user = user.to_dict()
     posts = Post.query.filter(Post.user_id == user['id']).all()
     user['Posts'] = [post.to_dict() for post in posts]
@@ -52,10 +52,7 @@ def get_followers(id):
     '''
         get users followers by id
     '''
-    user = User.query.get(id)
-    if(not user):
-        #error handling here later
-        pass
+    user = User.query.get_or_404(id, description='User not found')
     user = user.to_dict()
 
     # [post_arr.append(post.to_dict()) for post in posts]
@@ -75,6 +72,7 @@ def get_following(id):
         user = user.to_dict()
         # print('TEST------------------------->',user['following'])
         return{'following': user['following']}
+    return {'errors': ['User not found']}, 404
 
 @user_routes.route('/<int:id>/notfollowing', methods=['GET'])
 @login_required
@@ -88,6 +86,7 @@ def get_not_following(id):
         # print([user.to_dict()['username'] for user in users if user.id != currUser.id])
         # print('-----------------------------------------------------------')
         return {'users': [user.to_dict() for user in users if user.id != currUser.id]}
+    return {'errors': ['User not found']}, 404
 
 
 
@@ -100,7 +99,7 @@ def follow_user(id):
     if(curr_user and f_user):
         for follower in f_user.followers:
             if follower.id == current_user.id:
-                return{'error' : 'you are already following this user!'}
+                return {'errors': ['You are already following this user']}, 409
 
 
         f_user.followers.append(curr_user)
@@ -112,7 +111,7 @@ def follow_user(id):
         f_user = f_user.to_dict()
 
         return{'currentUser': curr_user, 'followingUser' : f_user}
-    #add error handling later!
+    return {'errors': ['User not found']}, 404
 
 @user_routes.route('/<int:id>/follow', methods=['DELETE'])
 @login_required
@@ -135,8 +134,8 @@ def unfollow_user(id):
                 f_user = f_user.to_dict()
 
                 return {'currentUser': curr_user, 'followingUser' : f_user}
-                # return {'Message': f'user {curr_user.id} unfollows user {f_user.id}'}
-        #error handling later!
+        return {'errors': ['You are not following this user']}, 409
+    return {'errors': ['User not found']}, 404
 
 @user_routes.route('/<int:id>/likes', methods=['GET'])
 @login_required
@@ -149,6 +148,7 @@ def get_all_liked_posts(id):
             post_arr.append(like.posts.to_dict())
 
         return {'likedPosts' : post_arr}
+    return {'errors': ['User not found']}, 404
 
 @user_routes.route('/likes')
 @login_required

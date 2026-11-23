@@ -44,7 +44,7 @@ def login():
         login_user(user)
         # print('TEST------------------------------------', user.test)
         return user.to_dict()
-    return {'errors': validation_errors_to_error_messages(form.errors)}, 401
+    return {'errors': validation_errors_to_error_messages(form.errors)}, 400
 
 
 @auth_routes.route('/logout', methods=['POST'])
@@ -91,7 +91,7 @@ def sign_up():
         db.session.commit()
         login_user(user)
         return user.to_dict()
-    return {'errors': validation_errors_to_error_messages(form.errors)}, 401
+    return {'errors': validation_errors_to_error_messages(form.errors)}, 400
 
 
 @auth_routes.route('/unauthorized')
