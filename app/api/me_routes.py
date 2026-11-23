@@ -1,30 +1,30 @@
-from flask import Blueprint, jsonify, session, request
-from app.models import User, db, Post, follows
-from flask_login import current_user, login_user, logout_user, login_required
+from flask import Blueprint
+from flask_login import current_user, login_required
+from sqlalchemy.orm import selectinload
+from app.models import db, Post
+from app.models.user import follows
 
 me_routes = Blueprint('me', __name__)
+
 
 @me_routes.route('/following/posts')
 @login_required
 def me_following_posts():
+    """Home feed: posts from everyone the current user follows, newest first.
 
-    user = User.query.get(current_user.id)
-    if(user):
-        #can get associated tables by using their relationship properties IE user.posts to get all posts associated with the user.
-        # print('TEST IN ME_ROUTE!-----',[post.to_dict() for post in user.posts])
-        user = user.to_dict()
-        # print('test-------------------------------',user['following'])
-        following = user['following']
-        post_arr = []
-        for i in range(len(following)):
-            # print(following[i]['userId'])
-            posts = Post.query.filter(Post.user_id == following[i]['userId']).order_by(Post.created_at.desc()).all()
-            [post_arr.append({**post.to_dict(), 'users': {
-                'username': post.users.username,
-                'profilePicture': post.users.profile_picture,
-                'userId': post.users.id
-            }}) for post in posts]
-        # print(post_arr)
-
-        return {'Posts': post_arr}
-    return {}
+    One query for the posts (plus one batched query for their authors via
+    selectinload), instead of 1 query per followed user, and the result is
+    sorted by time across all users instead of grouped by user.
+    """
+    followed_ids = db.session.query(follows.c.followed_id).filter(
+        follows.c.follower_id == current_user.id)
+    posts = (Post.query
+             .filter(Post.user_id.in_(followed_ids))
+             .options(selectinload(Post.users))
+             .order_by(Post.created_at.desc(), Post.id.desc())
+             .all())
+    return {'Posts': [{**post.to_dict(), 'users': {
+        'username': post.users.username,
+        'profilePicture': post.users.profile_picture,
+        'userId': post.users.id
+    }} for post in posts]}

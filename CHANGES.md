@@ -81,7 +81,7 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 
 ## Open questions for Tyler
 
-_None yet._
+1. **Home feed (P10):** should your own posts appear in your home feed (Instagram does)? Currently only followed users' posts are shown, same as before. It's a one-line change.
 
 ---
 
@@ -340,3 +340,27 @@ _None yet._
   Flask-Cors (P13 replaces it). Existing demo users with the 8-char password `password`
   still log in (the min length applies to new signups only). If you ever run the React dev
   server against a different origin without the CRA proxy, you'd need CORS back for that origin only.
+
+## P10 — Fix the home feed (bug + speed)
+- **Problem:** `GET /api/me/following/posts` looped over everyone you follow and ran one
+  query **per followed user**, appending results in follow order. So the feed showed all
+  of user A's posts, then all of user B's, instead of newest-first, and the frontend
+  didn't re-sort. It was also slow: `to_dict()` on the current user loaded followers,
+  following and likes just to get the followed IDs, then 1 query per followed user (an
+  "N+1" pattern). For the demo user this was 14 SQL queries per feed load.
+- **What changed:** One query: posts whose `user_id` is in
+  `(SELECT followed_id FROM follows WHERE follower_id = me)`, ordered by
+  `created_at DESC, id DESC` (id breaks ties, e.g. seed posts created in the same
+  second). Authors are loaded with `selectinload` (one extra batched query, not one per
+  post). The response shape (`{"Posts": [...]}` with a `users` object per post) is
+  unchanged, so the frontend needs no change. Your own posts are still **not** included
+  (same as before).
+- **Files:** `app/api/me_routes.py`.
+- **How to verify:** Log in as demo, open `/api/me/following/posts`: posts from different
+  users are mixed and `createdAt` goes from newest to oldest. With
+  `SQLALCHEMY_ECHO=true` you see ~3 queries instead of ~14. Test-client script: 4/4
+  (same post set as before, only followed users, sorted, 14 -> 3 queries measured).
+- **Things to watch / follow-ups:** Uses SQLAlchemy 1.4 `Model.query` style; P14 converts
+  it to `select()` style. Pagination/infinite scroll is P22; indexes on
+  `follows(follower_id)` and `posts(user_id, created_at)` are P21. Whether to include your
+  own posts in the home feed is an open question below.
