@@ -1,4 +1,3 @@
-from crypt import methods
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user, logout_user
 from app.models import Post, User, db, PostLike

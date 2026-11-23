@@ -1,6 +1,7 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField
-from wtforms.validators import DataRequired, Email, ValidationError
+from wtforms import StringField, PasswordField
+from wtforms.validators import DataRequired, Email, Length, ValidationError
+from .filters import strip_whitespace
 from app.models import User
 
 
@@ -21,9 +22,12 @@ def username_exists(form, field):
 
 
 class SignUpForm(FlaskForm):
+    # Length limits match the database columns (users.username String(40), others 255).
     username = StringField(
-        'username', validators=[DataRequired(), username_exists])
-    email = StringField('email', validators=[DataRequired(), user_exists, Email(message='please input valid email')])
-    password = StringField('password', validators=[DataRequired()])
-    first_name = StringField('first name', validators=[DataRequired()])
-    last_name = StringField('last name', validators=[DataRequired()])
+        'username', filters=[strip_whitespace], validators=[
+            DataRequired(), Length(max=40), username_exists])
+    email = StringField('email', filters=[strip_whitespace], validators=[
+        DataRequired(), Length(max=255), Email(message='please input valid email'), user_exists])
+    password = PasswordField('password', validators=[DataRequired(), Length(min=8, max=128)])
+    first_name = StringField('first name', filters=[strip_whitespace], validators=[DataRequired(), Length(max=255)])
+    last_name = StringField('last name', filters=[strip_whitespace], validators=[DataRequired(), Length(max=255)])

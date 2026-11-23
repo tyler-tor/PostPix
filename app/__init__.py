@@ -1,6 +1,4 @@
-import os
-from flask import Flask, render_template, request, session, redirect
-from flask_cors import CORS
+from flask import Flask
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect, CSRFError, generate_csrf
 from flask_login import LoginManager
@@ -15,7 +13,7 @@ from .api.img_routes import img_routes
 
 from .seeds import seed_commands
 
-from .config import Config
+from .config import Config, IS_PRODUCTION
 from .errors import register_error_handlers
 
 
@@ -51,7 +49,8 @@ db.init_app(app)
 Migrate(app, db)
 
 # Application Security
-CORS(app)
+# (flask-cors was removed: the React build is served from the same origin as
+# the API, so cross-origin requests are not needed and should not be allowed.)
 # Check a CSRF token on every POST/PUT/PATCH/DELETE (not just routes that use a
 # WTForm). The frontend sends the token in the X-CSRFToken header (apiFetch.js).
 csrf = CSRFProtect(app)
@@ -67,28 +66,13 @@ def handle_csrf_error(e):
 
 
 
-# Since we are deploying with Docker and Flask,
-# we won't be using a buildpack when we deploy to Heroku.
-# Therefore, we need to make sure that in production any
-# request made over http is redirected to https.
-# Well.........
-@app.before_request
-def https_redirect():
-    if os.environ.get('FLASK_ENV') == 'production':
-        if request.headers.get('X-Forwarded-Proto') == 'http':
-            url = request.url.replace('http://', 'https://', 1)
-            code = 301
-            return redirect(url, code=code)
-
-
 @app.after_request
 def inject_csrf_token(response):
     response.set_cookie(
         'csrf_token',
         generate_csrf(),
-        secure=True if os.environ.get('FLASK_ENV') == 'production' else False,
-        samesite='Strict' if os.environ.get(
-            'FLASK_ENV') == 'production' else None,
+        secure=IS_PRODUCTION,
+        samesite='Lax',
         # Must be readable by JavaScript so apiFetch can copy it into the
         # X-CSRFToken header. The token alone is not a secret: an attacker's
         # site cannot read our cookies, which is what makes this safe.

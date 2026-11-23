@@ -302,3 +302,41 @@ _None yet._
 - **Things to watch / follow-ups:** If you add a new user endpoint, use `to_public()`
   unless it is about the current user. The frontend never read other users' emails, so no
   UI change. P20 will make user payloads much smaller (no full follower lists).
+
+## P9 — Config and input hardening
+- **Problem:** `SECRET_KEY` could silently be `None` (Flask then can't sign sessions safely
+  / crashes later in odd places). `SQLALCHEMY_ECHO = True` logged **every SQL query** in
+  production (slow, and leaks data into logs). `DATABASE_URL` missing crashed with an
+  unclear `AttributeError`. Cookies had no explicit `Secure`/`SameSite` settings.
+  `CORS(app)` allowed any website to read API responses that don't need credentials,
+  although nothing needs cross-origin access. Three files had `from crypt import methods`
+  (an accidental editor auto-import) which **crashes on Python 3.13+** (the `crypt`
+  module was removed). Forms had no length limits, so a 1,000-character caption reached
+  the database and errored (500 on Postgres); passwords could be 1 character; inputs were
+  not trimmed. A Heroku-only `https_redirect` hook was dead code.
+- **What changed:** `app/config.py` now: raises a clear error at startup if `SECRET_KEY`
+  or `DATABASE_URL` is missing **in production** (dev falls back to a random key and
+  `sqlite:///dev.db`); `SQLALCHEMY_ECHO` comes from the env and defaults to **off**;
+  session and remember-me cookies are `HttpOnly`, `SameSite=Lax`, and `Secure` in
+  production; the CSRF cookie is `SameSite=Lax` (was `Strict`/unset) and `Secure` in
+  production. Removed `flask-cors` (code and `requirements.txt`), the `crypt` imports and
+  the Heroku redirect hook. Forms: `Length(max=...)` matching DB columns (caption 150,
+  comment 255, username 40, email/names/img_url 255), signup password is a
+  `PasswordField` with 8-128 chars, real `Email()` check, and text fields are trimmed
+  (new `app/forms/filters.py`), so a caption of only spaces is rejected.
+- **Files:** `app/config.py`, `app/__init__.py`, `app/api/post_routes.py`,
+  `app/api/user_routes.py`, `app/api/comment_routes.py`, `app/forms/*.py` (new
+  `filters.py`), `requirements.txt`.
+- **How to verify:** `FLASK_ENV=production SECRET_KEY= python -c "import app"` -> fails
+  with "SECRET_KEY is not set". Logged in: post with a 151-char caption -> 400; caption
+  `"   hi   "` is saved as `"hi"`; signup with password `abc` -> 400 with a password
+  error. Response headers contain no `Access-Control-Allow-Origin`; the `csrf_token`
+  Set-Cookie has `SameSite=Lax`. Test-client script: 14/14, and P3-P8 scripts re-run green.
+- **Things to watch / follow-ups:** **Production needs `SECRET_KEY` and `DATABASE_URL`
+  set** or it will refuse to start (on purpose). With `Secure` cookies, production must be
+  served over HTTPS (CloudFront in P36) or login won't stick. The old `Dockerfile` still
+  sets `ENV SQLALCHEMY_ECHO=True`, which now really turns echo on in that image; it is
+  replaced in P33 (set it to `false` if you build it before then). `Pipfile` still lists
+  Flask-Cors (P13 replaces it). Existing demo users with the 8-char password `password`
+  still log in (the min length applies to new signups only). If you ever run the React dev
+  server against a different origin without the CRA proxy, you'd need CORS back for that origin only.
