@@ -25,7 +25,7 @@ def authenticate():
     Authenticates a user.
     """
     if current_user.is_authenticated:
-        curr_user = current_user.to_dict()
+        curr_user = current_user.to_self()
         posts = Post.query.filter(Post.user_id == curr_user['id']).all()
         curr_user['Posts'] = [post.to_dict() for post in posts]
         return curr_user
@@ -43,7 +43,7 @@ def login():
         user = User.query.filter(User.email == form.data['email']).first()
         login_user(user)
         # print('TEST------------------------------------', user.test)
-        return user.to_dict()
+        return user.to_self()
     return {'errors': validation_errors_to_error_messages(form.errors)}, 400
 
 
@@ -87,7 +87,7 @@ def sign_up():
         db.session.add(user)
         db.session.commit()
         login_user(user)
-        return user.to_dict()
+        return user.to_self()
     return {'errors': validation_errors_to_error_messages(form.errors)}, 400
 
 

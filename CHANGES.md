@@ -281,3 +281,24 @@ _None yet._
   uploads succeed but images show as broken (403). Run `pip install -r requirements.txt`
   to get Pillow. `Pipfile`/`Pipfile.lock` were not updated (they are replaced in P13).
   Resizing/WebP conversion is P24.
+
+## P8 — Stop exposing private user data
+- **Problem:** `User.to_dict()` included `email`, and almost every user endpoint used it.
+  So any logged-in user, including anyone using the shared **demo** login, could call
+  `GET /api/users/` and download every user's email address (also leaked through profile,
+  "not following" suggestions and follow responses). That is a privacy leak and a spam
+  list.
+- **What changed:** `User` now has `to_public()` (id, username, names, picture,
+  followers/following, liked post IDs, timestamps; **no email**) and `to_self()`
+  (`to_public()` + email). `to_dict` is now an alias of `to_public`, so every existing
+  call became safe without touching each route. Only the "this is me" endpoints use
+  `to_self()`: `GET /api/auth/`, `POST /api/auth/login`, `POST /api/auth/signup`. The
+  unused dev component `User.js` no longer displays an email.
+- **Files:** `app/models/user.py`, `app/api/auth_routes.py`,
+  `react-app/src/components/User.js`.
+- **How to verify:** Log in as demo, open `/api/users/` in the browser -> no `email`
+  keys, no `@aa.io` anywhere. `/api/auth/` -> your own email is present. Test-client
+  script checks 7 endpoints for emails: 10/10.
+- **Things to watch / follow-ups:** If you add a new user endpoint, use `to_public()`
+  unless it is about the current user. The frontend never read other users' emails, so no
+  UI change. P20 will make user payloads much smaller (no full follower lists).

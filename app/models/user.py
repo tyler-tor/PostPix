@@ -55,12 +55,11 @@ class User(db.Model, UserMixin):
     def check_password(self, password):
         return check_password_hash(self.password, password)
 
-    def to_dict(self):
+    def to_public(self):
+        """Fields any logged-in user may see. No email or other private data."""
         return {
             'id': self.id,
             'username': self.username,
-            'email': self.email,
-            #added firstname and lastname -------------------------
             'firstName': self.first_name,
             'lastName': self.last_name,
             'followers': [{'userId': follower.id, 'username': follower.username, 'profilePicture': follower.profile_picture} for follower in self.followers],
@@ -70,6 +69,15 @@ class User(db.Model, UserMixin):
             'createdAt': self.created_at,
             'updatedAt': self.updated_at
         }
+
+    def to_self(self):
+        """Everything in to_public() plus private fields. Only for the user
+        themselves (login, signup, GET /api/auth/)."""
+        return {**self.to_public(), 'email': self.email}
+
+    # Old name kept so existing code keeps working; it is the PUBLIC view.
+    to_dict = to_public
+
     # def un_follow(self, id):
     #     for i in range(len(self.follows)):
     #         user = self.follows[i]
