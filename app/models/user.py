@@ -1,4 +1,5 @@
 from .db import db, TimestampMixin, iso
+from ..media import default_avatar_url
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin, current_user
 from sqlalchemy import select, func, exists, literal
@@ -20,8 +21,9 @@ class User(TimestampMixin, db.Model, UserMixin):
     username = db.Column(db.String(40), nullable=False, unique=True)
     email = db.Column(db.String(255), nullable=False, unique=True)
     hashed_password = db.Column(db.String(255), nullable=False)
-    profile_picture = db.Column(db.String(255),
-    default='https://t3.ftcdn.net/jpg/00/64/67/52/240_F_64675209_7ve2XQANuzuHjMZXP3aIYIpsDKEbF5dD.jpg')
+    # New users without an uploaded picture get the default avatar from the
+    # media bucket (or its original URL locally); see app/media.py.
+    profile_picture = db.Column(db.String(255), default=default_avatar_url)
     #added first/lastname ----------------------------------------
     first_name = db.Column(db.String(255), nullable=False)
     last_name = db.Column(db.String(255), nullable=False)

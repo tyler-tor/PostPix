@@ -1,4 +1,5 @@
 from app.models import db, User
+from app.media import seed_avatar_url
 # from faker import Faker
 
 # fake = Faker()
@@ -13,36 +14,36 @@ from app.models import db, User
 # Adds a demo user, you can add other users here if you want
 def seed_users():
     demo = User( #1
-        username='Demo', email='demo@aa.io', password='password', first_name='demo', last_name='user', profile_picture='https://capstone-strava-clone-aktiv.s3.us-west-2.amazonaws.com/Instagram+Seed+Photos/1.jpg')
+        username='Demo', email='demo@aa.io', password='password', first_name='demo', last_name='user', profile_picture=seed_avatar_url(1))
     marnie = User( #2
-        username='marnie', email='marnie@aa.io', password='password', first_name='demo1', last_name='user1', profile_picture='https://capstone-strava-clone-aktiv.s3.us-west-2.amazonaws.com/Instagram+Seed+Photos/10.jpg')
+        username='marnie', email='marnie@aa.io', password='password', first_name='demo1', last_name='user1', profile_picture=seed_avatar_url(2))
     bobbie = User( #3
-        username='bobbie', email='bobbie@aa.io', password='password', first_name='demo2', last_name='user2', profile_picture='https://capstone-strava-clone-aktiv.s3.us-west-2.amazonaws.com/Instagram+Seed+Photos/11.jpg')
+        username='bobbie', email='bobbie@aa.io', password='password', first_name='demo2', last_name='user2', profile_picture=seed_avatar_url(3))
     theo = User( #4
-        username='theoman42', email='theo@aa.io', password='password', first_name='theo', last_name='fan', profile_picture='https://capstone-strava-clone-aktiv.s3.us-west-2.amazonaws.com/Instagram+Seed+Photos/12.jpg')
+        username='theoman42', email='theo@aa.io', password='password', first_name='theo', last_name='fan', profile_picture=seed_avatar_url(4))
     derek = User( #5
-        username='torman', email='tor@aa.io', password='password', first_name='derk', last_name='tor', profile_picture='https://capstone-strava-clone-aktiv.s3.us-west-2.amazonaws.com/Instagram+Seed+Photos/13.jpg')
+        username='torman', email='tor@aa.io', password='password', first_name='derk', last_name='tor', profile_picture=seed_avatar_url(5))
     alan = User( #6
-        username='awdel88', email='awd@aa.io', password='password', first_name='alan', last_name='del', profile_picture='https://capstone-strava-clone-aktiv.s3.us-west-2.amazonaws.com/Instagram+Seed+Photos/14.jpg')
+        username='awdel88', email='awd@aa.io', password='password', first_name='alan', last_name='del', profile_picture=seed_avatar_url(6))
     gabe = User( #7
-        username='gabeknight', email='knight@aa.io', password='password', first_name='gabriel', last_name='knight', profile_picture='https://capstone-strava-clone-aktiv.s3.us-west-2.amazonaws.com/Instagram+Seed+Photos/15.jpg')
+        username='gabeknight', email='knight@aa.io', password='password', first_name='gabriel', last_name='knight', profile_picture=seed_avatar_url(7))
     grace = User( #8
-        username='grace2', email='chang@aa.io', password='password', first_name='grace', last_name='wong', profile_picture='https://capstone-strava-clone-aktiv.s3.us-west-2.amazonaws.com/Instagram+Seed+Photos/2.jpg')
+        username='grace2', email='chang@aa.io', password='password', first_name='grace', last_name='wong', profile_picture=seed_avatar_url(8))
     wilson = User( #9
-        username='lalawill', email='healz@aa.io', password='password', first_name='wilson', last_name='lee', profile_picture='https://capstone-strava-clone-aktiv.s3.us-west-2.amazonaws.com/Instagram+Seed+Photos/3.jpg')
+        username='lalawill', email='healz@aa.io', password='password', first_name='wilson', last_name='lee', profile_picture=seed_avatar_url(9))
     chris = User( #10
-        username='chrisTheMan', email='tofu@aa.io', password='password', first_name='chris', last_name='pork', profile_picture='https://capstone-strava-clone-aktiv.s3.us-west-2.amazonaws.com/Instagram+Seed+Photos/4.jpg')
+        username='chrisTheMan', email='tofu@aa.io', password='password', first_name='chris', last_name='pork', profile_picture=seed_avatar_url(10))
         # //----------------------------
     matt = User( #11
-        username='MattyIce', email='mattyice@aa.io', password='password', first_name='matt', last_name='smith', profile_picture='https://capstone-strava-clone-aktiv.s3.us-west-2.amazonaws.com/Instagram+Seed+Photos/5.jpg')
+        username='MattyIce', email='mattyice@aa.io', password='password', first_name='matt', last_name='smith', profile_picture=seed_avatar_url(11))
     taylor = User( #12
-        username='taytay', email='taytay@aa.io', password='password', first_name='taylor', last_name='armstrong', profile_picture='https://capstone-strava-clone-aktiv.s3.us-west-2.amazonaws.com/Instagram+Seed+Photos/6.jpg')
+        username='taytay', email='taytay@aa.io', password='password', first_name='taylor', last_name='armstrong', profile_picture=seed_avatar_url(12))
     jane = User( #13
-        username='janedoe', email='janedoe@aa.io', password='password', first_name='jane', last_name='doe', profile_picture='https://capstone-strava-clone-aktiv.s3.us-west-2.amazonaws.com/Instagram+Seed+Photos/7.jpg')
+        username='janedoe', email='janedoe@aa.io', password='password', first_name='jane', last_name='doe', profile_picture=seed_avatar_url(13))
     danielle = User( #14
-        username='itsdanelle', email='danelle@aa.io', password='password', first_name='danielle', last_name='schrader', profile_picture='https://capstone-strava-clone-aktiv.s3.us-west-2.amazonaws.com/Instagram+Seed+Photos/8.jpg')
+        username='itsdanelle', email='danelle@aa.io', password='password', first_name='danielle', last_name='schrader', profile_picture=seed_avatar_url(14))
     ronald = User( #15
-        username='ronweasley', email='weasley@aa.io', password='password', first_name='ronald', last_name='weasley', profile_picture='https://capstone-strava-clone-aktiv.s3.us-west-2.amazonaws.com/Instagram+Seed+Photos/9.jpg')
+        username='ronweasley', email='weasley@aa.io', password='password', first_name='ronald', last_name='weasley', profile_picture=seed_avatar_url(15))
 
 
 

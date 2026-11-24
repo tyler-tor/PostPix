@@ -1580,3 +1580,69 @@ differ):
     work). Everything else works without S3.
   - Keep the `db` image's major version (17) in step with the RDS engine version chosen in the
     infra repo.
+
+## P37 — Uploads with the instance role, MEDIA_BASE_URL, and a seed media manifest (code side)
+- **Problem:** `app/s3_helpers.py` built a boto3 client at import time from `S3_KEY` /
+  `S3_SECRET` (static access keys, the kind that leaked in P1), read the bucket and URL settings
+  at import time (outside the app factory), and built public URLs from a bucket URL that only
+  works for a public bucket. Every seed image was hot-linked from hosts Tyler does not control
+  (a teammate's `capstone-strava-clone-aktiv` bucket, imgur, vecteezy, and an Adobe Stock
+  preview for the default avatar), so the demo could lose its pictures at any time.
+- **What changed:**
+  - **No access keys anywhere.** The S3 client is created on first use, per app, with only
+    `region_name=AWS_REGION`; boto3's default credential chain finds the EC2 instance role in
+    production and `AWS_PROFILE` / `aws sso login` locally. `S3_KEY`, `S3_SECRET` and
+    `S3_PUBLIC_URL_BASE` are gone from code and `.env.example`.
+  - **New settings** in `app/config.py`: `S3_BUCKET`, `AWS_REGION` (default `us-east-2`; also
+    reads `AWS_DEFAULT_REGION`), `MEDIA_BASE_URL` (public base, e.g.
+    `https://postpix.tylertorrero.dev/media`, trailing `/` removed).
+  - **New `app/media.py`:** one rule for every image URL: `MEDIA_BASE_URL + "/" + key`. Uploads
+    keep their keys `uploads/<random>.webp` (+ `_thumb.webp`), uploaded without an ACL. With no
+    `MEDIA_BASE_URL`, an upload's URL falls back to the regional S3 URL
+    (`https://<bucket>.s3.<region>.amazonaws.com/<key>`), which only displays if that bucket is
+    public; set `MEDIA_BASE_URL` once CloudFront exists.
+  - **New `app/seeds/media_manifest.json`:** maps every seed image to an S3 key under `seed/`:
+    15 avatars (`seed/avatars/user-01.jpg` ... `user-15.jpg`, by the `#N` seed number in
+    `users.py`), 50 post images (`seed/posts/post-01.jpg` ... `post-50.png`, by `postN` in
+    `posts.py`) and the default avatar (`seed/avatars/default.jpg`). Each entry also keeps the
+    original URL as `source`. `users.py` / `posts.py` now call `seed_avatar_url(n)` /
+    `seed_post_url(n)` instead of hard-coding URLs.
+  - **Local fallback:** without `MEDIA_BASE_URL` the seeds use each entry's `source` (the same
+    URLs as before), so local development needs no AWS at all and looks exactly as it did.
+  - **Default avatar** for new users without a picture is now a callable column default
+    (`default_avatar_url()`), so it also comes from the media bucket in production.
+    (Python-side default only; no migration needed.)
+  - Upload failures are logged with `app.logger.exception` instead of `print`.
+- **What the infra repo must do (P35/P36 media pack):** create the uploads bucket (private,
+  Block Public Access on, Object Ownership "bucket owner enforced"); serve it through the site's
+  CloudFront at `/media/*` with Origin Access Control, stripping the `/media` prefix (a
+  CloudFront Function on the viewer request: `request.uri = request.uri.replace(/^\/media/, '')`)
+  because the keys start at `uploads/` and `seed/`; upload the media pack: for every entry in
+  `media_manifest.json` download `source` and put it at `key` with the right `Content-Type`
+  and `Cache-Control: public, max-age=31536000, immutable`. Replacement pictures can be
+  uploaded at the same keys (see "Things to watch").
+- **Files:** new `app/media.py`, new `app/seeds/media_manifest.json`, `app/s3_helpers.py`,
+  `app/config.py`, `app/models/user.py`, `app/seeds/users.py`, `app/seeds/posts.py`,
+  `.env.example`, new `tests/test_media.py`.
+- **How to verify:** `python -m pytest tests/test_media.py` (7 tests, S3 faked with moto: upload
+  lands under `uploads/` with `image/webp`, a year-long `Cache-Control` and no ACL grant; URL
+  starts with `MEDIA_BASE_URL`; regional URL without it; clean 502 "S3 is not configured"
+  without a bucket; manifest covers seed users 1-15, posts 1-50 and the default avatar, all
+  keys unique and under `seed/`; seeding with and without `MEDIA_BASE_URL`; new users get the
+  default avatar). Locally: `flask seed all --reset` and the feed shows the same pictures as
+  before.
+- **Things to watch:**
+  - **Your local `.env`:** `S3_KEY` / `S3_SECRET` are no longer read. If you test uploads
+    locally, use `AWS_PROFILE=<profile>` (or `aws sso login`) with an identity that may
+    `s3:PutObject` on `uploads/*` in your bucket, and set `AWS_REGION`.
+  - **Image rights:** the media pack copies third-party pictures (imgur uploads, a vecteezy
+    stock icon used by posts 1-3, an Adobe Stock preview as the default avatar, and the
+    teammate's bucket). Copying them into your own bucket does not make them yours. Consider
+    replacing them with your own or properly licensed photos: upload the new files at the same
+    keys and nothing in the code changes. The teammate's bucket may also be gone already; the
+    infra step should report any `source` that fails to download.
+  - Existing databases keep the URLs they were seeded with; only new seeds (or the P41 demo
+    reset for the demo user's posts) use `MEDIA_BASE_URL`. Production starts empty, so it is
+    seeded with the new URLs from day one.
+  - The manifest's keys must never be changed after upload: CloudFront and browsers cache them
+    for a year. To change a picture, use a new key.

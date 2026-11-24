@@ -118,6 +118,16 @@ class Config:
         # does not contain the build). SERVE_FRONTEND=true turns it back on.
         self.SERVE_FRONTEND = _env_bool('SERVE_FRONTEND', not self.IS_PRODUCTION)
 
+        # Images (P37). boto3 finds credentials by itself (default chain): the
+        # EC2 instance role in production, AWS_PROFILE / `aws sso login`
+        # locally. There are deliberately no access-key settings here.
+        self.S3_BUCKET = os.environ.get('S3_BUCKET') or None
+        self.AWS_REGION = (os.environ.get('AWS_REGION')
+                           or os.environ.get('AWS_DEFAULT_REGION') or 'us-east-2')
+        # Public base URL of the bucket's files (CloudFront), e.g.
+        # https://postpix.tylertorrero.dev/media. See app/media.py.
+        self.MEDIA_BASE_URL = (os.environ.get('MEDIA_BASE_URL') or '').strip().rstrip('/')
+
 
 class DevConfig(Config):
     """Local development: SQLite by default, random key if none is set."""

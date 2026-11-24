@@ -17,19 +17,13 @@ Then (P24) every upload is re-encoded with Pillow instead of stored as sent:
   * files are cached for a year (their names are random and never reused).
 """
 import io
-import os
 import uuid
 
 import boto3
+from flask import current_app
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-# With no S3_KEY/S3_SECRET set, boto3 falls back to its normal credential
-# chain (e.g. an EC2 IAM role), which is the plan for production (P37).
-s3 = boto3.client(
-   "s3",
-   aws_access_key_id=os.environ.get("S3_KEY"),
-   aws_secret_access_key=os.environ.get("S3_SECRET")
-)
+from app.media import media_url
 
 # Pillow format name -> (file extension, Content-Type)
 IMAGE_FORMATS = {
@@ -49,12 +43,34 @@ AVATAR_SIZE = (320, 320)
 CACHE_CONTROL = 'public, max-age=31536000, immutable'
 
 UPLOAD_PREFIX = 'uploads/'
-BUCKET_NAME = os.environ.get('S3_BUCKET')
-# Public base URL for uploaded files. Set S3_PUBLIC_URL_BASE to your CloudFront
-# URL later (P37); default is the bucket's HTTPS URL.
-S3_LOCATION = os.environ.get('S3_PUBLIC_URL_BASE') or f'https://{BUCKET_NAME}.s3.amazonaws.com/'
-if not S3_LOCATION.endswith('/'):
-    S3_LOCATION += '/'
+
+
+def s3_client():
+    """One boto3 S3 client per app, created on first use.
+
+    No keys are passed: boto3's default credential chain finds the EC2
+    instance role in production and your AWS_PROFILE / SSO login locally.
+    (boto3 clients are thread-safe, so gunicorn's threads can share it.)
+    """
+    client = current_app.extensions.get('postpix_s3')
+    if client is None:
+        client = boto3.client('s3', region_name=current_app.config['AWS_REGION'])
+        current_app.extensions['postpix_s3'] = client
+    return client
+
+
+def public_url(key):
+    """URL the browser uses for an uploaded object.
+
+    MEDIA_BASE_URL (CloudFront) when set; otherwise the bucket's regional S3
+    URL, which only works if that bucket allows public reads (a private
+    bucket gives 403 there; set MEDIA_BASE_URL instead).
+    """
+    url = media_url(key)
+    if url:
+        return url
+    config = current_app.config
+    return f"https://{config['S3_BUCKET']}.s3.{config['AWS_REGION']}.amazonaws.com/{key}"
 
 
 class InvalidImage(ValueError):
@@ -96,23 +112,24 @@ def upload_file_to_s3(file, key, content_type):
     """Upload to S3 without an ACL.
 
     New buckets have ACLs disabled ("Bucket owner enforced"), so passing
-    ACL='public-read' makes the upload fail. Public read access should come
-    from a bucket policy or CloudFront (P37) instead.
+    ACL='public-read' makes the upload fail. The bucket stays private;
+    CloudFront (with Origin Access Control) serves it under MEDIA_BASE_URL.
     """
-    if not BUCKET_NAME:
+    bucket = current_app.config['S3_BUCKET']
+    if not bucket:
         return {'errors': 'S3 is not configured (S3_BUCKET is empty)'}
     try:
-        s3.upload_fileobj(
+        s3_client().upload_fileobj(
             file,
-            BUCKET_NAME,
+            bucket,
             key,
             ExtraArgs={'ContentType': content_type, 'CacheControl': CACHE_CONTROL}
         )
-    except Exception as e:
+    except Exception:
         # Log the real reason server-side; don't leak AWS details to clients.
-        print(f'S3 upload failed: {e!r}')
+        current_app.logger.exception('S3 upload failed for %s', key)
         return {'errors': 'upload failed'}
-    return {'url': f'{S3_LOCATION}{key}'}
+    return {'url': public_url(key)}
 
 
 def _encode_webp(image, size, quality):
