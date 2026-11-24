@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import PostGrid from "../Post/PostGrid";
 import UserListModal from "../reUsedComponents/UserListModal";
@@ -7,6 +7,8 @@ import LoadMore from "../reUsedComponents/LoadMore";
 import { setFollow } from "../../store/users";
 import NotFound from "../NotFound";
 import Avatar from "../ui/Avatar";
+import StatusMessage from "../ui/StatusMessage";
+import { ProfileSkeleton } from "../ui/Skeletons";
 import "./UserProfile.css";
 
 const UserInfoBox = ({ userId }) => {
@@ -14,7 +16,6 @@ const UserInfoBox = ({ userId }) => {
   const currUser = useSelector((state) => state.session.user);
   const profile = useSelector((state) => state.profile);
   const profileUser = useSelector((state) => state.users.byId[userId]);
-  const [followErrors, setFollowErrors] = useState([]);
 
   useEffect(() => {
     dispatch(loadProfile(userId));
@@ -25,12 +26,22 @@ const UserInfoBox = ({ userId }) => {
   if (profile.userId === userId && profile.status === "notFound") {
     return <NotFound title="Profile not found" message="There is no Postpix user with that id. They may have deleted their account." />;
   }
-  if (profile.userId !== userId || profile.status !== "ready" || !profileUser) return null;
+  if (profile.userId === userId && profile.status === "error") {
+    return (
+      <StatusMessage
+        kind="error"
+        title="Could not load this profile"
+        message={profile.error}
+        action={<button type="button" className="btn btn-primary" onClick={() => dispatch(loadProfile(userId))}>Try again</button>}
+      />
+    );
+  }
+  if (profile.userId !== userId || profile.status !== "ready" || !profileUser) return <ProfileSkeleton />;
 
   const isMe = currUser.id === userId;
 
   const handleFollow = async (follow) => {
-    setFollowErrors((await dispatch(setFollow(userId, follow))) || []);
+    await dispatch(setFollow(userId, follow)); // a failure shows a toast and undoes itself
   };
 
   const fullName = `${profileUser.firstName || ""} ${profileUser.lastName || ""}`.trim();
@@ -69,22 +80,15 @@ const UserInfoBox = ({ userId }) => {
               {profileUser.isFollowedByMe ? "Following" : "Follow"}
             </button>
           )}
-          {followErrors.length > 0 && (
-            <ul className="form-errors" role="alert">
-              {followErrors.map((error) => (
-                <li key={error}>{error}</li>
-              ))}
-            </ul>
-          )}
         </div>
       </header>
 
       <h2 className="visually-hidden">Posts</h2>
       {profile.postIds.length === 0 ? (
-        <div className="empty">
-          <p className="empty-title">No posts yet</p>
-          <p>{isMe ? "Share your first photo with the New post button." : `${profileUser.username} has not shared anything yet.`}</p>
-        </div>
+        <StatusMessage
+          title="No posts yet"
+          message={isMe ? "Share your first photo with the New post button." : `${profileUser.username} has not shared anything yet.`}
+        />
       ) : (
         <PostGrid postIds={profile.postIds} />
       )}

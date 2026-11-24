@@ -74,7 +74,10 @@ const PostDetail = ({ postId, onClose }) => {
             </p>
             <h2 className="visually-hidden">Comments</h2>
             {status === "loading" && ids.length === 0 && <p className="pd-note" role="status">Loading comments...</p>}
-            {status === "error" && <p className="pd-note" role="alert">Could not load comments. Close the post and open it again to retry.</p>}
+            {status === "error" && <p className="pd-note" role="alert">
+                Could not load comments.{" "}
+                <button type="button" className="text-btn pd-retry" onClick={() => dispatch(loadComments(postId))}>Try again</button>
+              </p>}
             {status === "ready" && ids.length === 0 && <p className="pd-note">No comments yet. Be the first.</p>}
             <ul className="pd-comments">
               {ids.map((id) => {

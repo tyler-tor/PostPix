@@ -8,9 +8,6 @@
 .profile-stats strong { font-family: var(--font-display); font-size: var(--text-md); }
 .profile-info .btn { min-width: 9rem; }
 
-.empty { display: grid; justify-items: center; gap: var(--space-2); padding: var(--space-7) var(--space-4); color: var(--ink-2); text-align: center; border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); }
-.empty-title { font-family: var(--font-display); font-size: var(--text-lg); color: var(--ink); }
-
 @media (min-width: 40rem) {
   .profile-head { grid-template-columns: auto minmax(0, 1fr); justify-items: start; text-align: left; gap: var(--space-7); padding: var(--space-6) 0 var(--space-7); }
   .profile-info { justify-items: start; }

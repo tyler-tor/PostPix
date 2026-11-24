@@ -73,3 +73,4 @@
 @media (min-width: 48rem) {
   .pd { grid-template-rows: none; grid-template-columns: minmax(0, 1.5fr) minmax(20rem, 1fr); }
 }
+.pd-retry { color: var(--accent-strong); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }

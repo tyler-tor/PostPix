@@ -1,6 +1,7 @@
 import { createSlice } from "@reduxjs/toolkit";
 import { api } from "../utils/api";
 import { patchUser } from "./session";
+import { toast } from "../utils/toast";
 import { postCreated, postRemoved } from "./posts";
 
 // Users the app has seen, keyed by id (profile data, follower counts, whether
@@ -23,6 +24,9 @@ const usersSlice = createSlice({
     setSuggestionIds(state, action) {
       state.suggestionIds = action.payload;
     },
+    suggestionRestored(state, action) {
+      if (!state.suggestionIds.includes(action.payload)) state.suggestionIds.unshift(action.payload);
+    },
     followChanged(state, action) {
       const { id, followed } = action.payload;
       state.followingIds = state.followingIds.filter((x) => x !== id);
@@ -44,7 +48,7 @@ const usersSlice = createSlice({
 });
 
 export const { upsertUsers } = usersSlice.actions;
-const { setFollowingIds, setSuggestionIds, followChanged } = usersSlice.actions;
+const { setFollowingIds, setSuggestionIds, followChanged, suggestionRestored } = usersSlice.actions;
 
 export const selectUser = (id) => (state) => state.users.byId[id];
 
@@ -69,11 +73,29 @@ export const loadSuggestions = () => async (dispatch, getState) => {
 };
 
 // Follow (follow = true) or unfollow a user. Returns null or an array of errors.
-export const setFollow = (id, follow) => async (dispatch) => {
-  const res = await api(`/api/users/${id}/follow`, { method: follow ? "POST" : "DELETE" });
-  if (!res.ok) return res.errors;
-  dispatch(upsertUsers([res.data.followingUser]));
+// Optimistic: the button and the follower count change at once; if the request
+// fails they go back and a message appears.
+export const setFollow = (id, follow) => async (dispatch, getState) => {
+  const before = getState().users.byId[id];
+  const me = getState().session.user;
+  const wasSuggested = getState().users.suggestionIds.includes(id);
+  const previous = before && { isFollowedByMe: before.isFollowedByMe, followerCount: before.followerCount };
+  if (before) {
+    dispatch(upsertUsers([{ id, isFollowedByMe: follow, followerCount: Math.max(0, before.followerCount + (follow ? 1 : -1)) }]));
+  }
   dispatch(followChanged({ id, followed: follow }));
+  dispatch(patchUser({ followingCount: Math.max(0, me.followingCount + (follow ? 1 : -1)) }));
+
+  const res = await api(`/api/users/${id}/follow`, { method: follow ? "POST" : "DELETE" });
+  if (!res.ok) {
+    if (previous) dispatch(upsertUsers([{ id, ...previous }]));
+    dispatch(followChanged({ id, followed: !follow }));
+    if (wasSuggested) dispatch(suggestionRestored(id));
+    dispatch(patchUser({ followingCount: me.followingCount }));
+    toast(follow ? "Could not follow. Try again." : "Could not unfollow. Try again.", "error");
+    return res.errors;
+  }
+  dispatch(upsertUsers([res.data.followingUser]));
   dispatch(patchUser({ followingCount: res.data.currentUser.followingCount }));
   return null;
 };

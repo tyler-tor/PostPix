@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useState, useEffect, useRef } from "react";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import { useDispatch, useSelector } from "react-redux";
 import NavBar from "./components/NavBar";
+import Toaster from "./components/ui/Toaster";
 import ProtectedRoute from "./components/reUsedComponents/ProtectedRoute";
 import { authenticate } from "./store/session";
 
@@ -69,6 +70,7 @@ function App() {
         </Routes>
       </Suspense>
       </main>
+      <Toaster />
     </BrowserRouter>
   );
 }

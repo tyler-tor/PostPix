@@ -1395,3 +1395,36 @@ the P32 section.
   Focus trapping and Escape rely on the browser's native `<dialog>`; color contrast is
   computed from the tokens only (not from rendered pixels, e.g. text on photos in the
   tile counts, which sit on a dark gradient).
+
+## P31 — Loading, empty and error states, toasts, optimistic updates
+- **Problem:** Pages showed nothing while loading and nothing when a request failed; an
+  empty feed or profile was a blank area; likes and follows waited for the server before
+  anything moved, so the app felt slow, and a failed request left no trace.
+- **What changed:**
+  - **Skeletons** (`ui/Skeletons.jsx`): grey, softly shimmering placeholders laid out like
+    the real feed card, photo grid and profile header, so the page does not jump when data
+    arrives. They announce "Loading ..." once to screen readers; the shimmer stops under
+    `prefers-reduced-motion`.
+  - **Empty and error states** (`ui/StatusMessage.jsx`): home ("Your feed is empty", with a
+    button to Explore), Explore ("Nothing here yet"), profile ("No posts yet", worded
+    for you or for them), plus error states with a "Try again" button on home, Explore,
+    profile and the comments list in the post dialog. Errors are announced (`role=alert`).
+  - **Toasts** (`utils/toast.js`, `ui/Toaster.jsx`): small messages at the bottom ("Post
+    shared.", "Post deleted.", "Could not like this post. Try again."). Kept out of Redux
+    because they are short-lived feedback. The container is a `popover`, which sits in the
+    browser's top layer so toasts still show above an open dialog.
+  - **Optimistic like and follow:** the heart, like count, Follow button and follower
+    counts change immediately; the response then replaces them with the server's numbers;
+    on failure everything is restored (including a suggestion in the right rail) and an
+    error toast appears. A second tap on the same post during a request is ignored.
+- **Files:** `store/posts.js`, `store/users.js`, `utils/toast.js`, `components/ui/*`,
+  `HomeFeed/ActualFeed.jsx`, `ExplorePage/index.jsx`, `UserProfile/UserInfoBox.jsx`,
+  `Post/PostDetail.jsx`, `App.jsx`.
+- **How to verify:** in dev tools set the network to Offline (or throttle) and tap a heart:
+  it fills at once and flips back with a message. Reload with throttling to see skeletons.
+  jsdom check `p31.mjs` (12 checks: optimistic flip, rollback for like and follow, toast
+  role, skeleton, error state, retry).
+- **Things to watch:** Toasts opened while a dialog is open are visible but cannot be
+  clicked (the dialog makes the rest of the page inert); they dismiss themselves after
+  4 s (7 s for errors). Comment and caption edits are not optimistic: they show inline
+  errors in their dialogs.

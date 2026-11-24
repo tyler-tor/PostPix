@@ -1,0 +1,64 @@
+/* ---- Skeletons ---- */
+.skeleton {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(100deg, var(--surface-2) 30%, color-mix(in srgb, var(--surface-2) 55%, var(--surface)) 50%, var(--surface-2) 70%);
+  background-size: 250% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+.skeleton-wrap { display: contents; }
+
+/* ---- Empty and error states ---- */
+.status-message {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-4);
+  color: var(--ink-2);
+  text-align: center;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+}
+.status-title { font-family: var(--font-display); font-size: var(--text-lg); font-weight: 700; color: var(--ink); }
+
+/* ---- Toasts ---- */
+.toaster {
+  position: fixed;
+  z-index: var(--z-toast);
+  left: 50%;
+  top: auto;
+  right: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  overflow: visible;
+  bottom: calc(var(--tabbar-h) + var(--space-4));
+  transform: translateX(-50%);
+  width: min(26rem, calc(100vw - 2rem));
+  display: grid;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+  font-size: var(--text-sm);
+  animation: toast-in var(--base) var(--ease);
+}
+.toast p { flex: 1; }
+.toast .icon-btn { color: inherit; }
+.toast .icon-btn:hover { background: rgb(255 255 255 / 0.14); color: inherit; }
+.toast-error { background: var(--danger); color: #fff; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(0.5rem); } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+@media (min-width: 40rem) { .toaster { bottom: var(--space-5); } }
