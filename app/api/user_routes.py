@@ -3,6 +3,8 @@ from flask_login import login_required, current_user, logout_user
 from flask import request
 from sqlalchemy import select, delete, insert
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
+from app.api.serializers import serialize_posts
 from app.models import User, db, Post, PostLike
 from app.models.user import follows, user_summary
 
@@ -51,8 +53,10 @@ def user(id):
         return {'errors': ['User not found']}, 404
     user = User.row_to_dict(row)
     # Posts of this user for the profile grid (paginated in P22).
-    posts = db.session.scalars(select(Post).where(Post.user_id == id)).all()
-    user['Posts'] = [post.to_dict() for post in posts]
+    posts = db.session.scalars(
+        select(Post).where(Post.user_id == id).options(selectinload(Post.users))
+        .order_by(Post.created_at.desc(), Post.id.desc())).all()
+    user['Posts'] = serialize_posts(posts, current_user.id)
     return user
 
 

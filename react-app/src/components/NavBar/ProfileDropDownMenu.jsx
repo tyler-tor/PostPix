@@ -5,7 +5,6 @@ import { HiOutlineUserCircle } from "react-icons/hi";
 import { FaHandLizard, FaUserCircle } from "react-icons/fa";
 
 import { logout } from "../../store/session";
-import { getProfileUser } from "../../store/profileUser";
 
 const ProfileDropDownMenu = () => {
   const dispatch = useDispatch();
@@ -35,15 +34,11 @@ const ProfileDropDownMenu = () => {
     return () => document.removeEventListener("click", closeMenu);
   }, [showMenu]);
 
-  const handleProfileClick = e =>{
-    dispatch(getProfileUser(user.id))
-  }
-
   let sessionLinks;
 
   sessionLinks = (
     <>
-      <NavLink to={`/${user.id}`} className="profile-dropdown-button" onClick={handleProfileClick}>
+      <NavLink to={`/${user.id}`} className="profile-dropdown-button">
         <HiOutlineUserCircle className="drop-down-profile-icon" />
         <span className="drop-down-menu-span">Profile</span>
       </NavLink>

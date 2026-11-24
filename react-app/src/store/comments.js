@@ -1,116 +1,80 @@
 import { createSlice } from "@reduxjs/toolkit";
-import apiFetch from "../utils/apiFetch";
-import { keyBy } from "./helpers";
+import { api } from "../utils/api";
+import { patchPost } from "./posts";
 
-// Comments of the post open in the modal, keyed by comment id.
-// (Immer lets the reducers "mutate" state safely; RTK makes the copies.)
+// Comments of the post that is open in the modal (oldest first).
+// status: idle | loading | ready | error
 const commentsSlice = createSlice({
   name: "comments",
-  initialState: {},
+  initialState: { postId: null, byId: {}, ids: [], status: "idle" },
   reducers: {
-    setComments: (state, action) => keyBy(action.payload),
-    addComment(state, action) {
-      state[action.payload.id] = action.payload;
+    commentsLoading(state, action) {
+      if (state.postId !== action.payload) {
+        state.byId = {};
+        state.ids = [];
+      }
+      state.postId = action.payload;
+      state.status = "loading";
     },
-    updateCommentBody(state, action) {
-      const comment = state[action.payload.id];
-      if (comment) comment.body = action.payload.body;
+    commentsLoaded(state, action) {
+      state.status = "ready";
+      state.byId = Object.fromEntries(action.payload.map((c) => [c.id, c]));
+      state.ids = action.payload.map((c) => c.id);
     },
-    removeComment(state, action) {
-      delete state[action.payload];
+    commentsFailed(state) {
+      state.status = "error";
     },
-    clearComments: () => ({}),
+    commentAdded(state, action) {
+      state.byId[action.payload.id] = action.payload;
+      state.ids.push(action.payload.id);
+    },
+    commentChanged(state, action) {
+      state.byId[action.payload.id] = action.payload;
+    },
+    commentRemoved(state, action) {
+      delete state.byId[action.payload];
+      state.ids = state.ids.filter((id) => id !== action.payload);
+    },
   },
 });
 
-const { setComments, addComment, updateCommentBody, removeComment } =
+const { commentsLoading, commentsLoaded, commentsFailed, commentAdded, commentChanged, commentRemoved } =
   commentsSlice.actions;
-export const clearCommentsAction = commentsSlice.actions.clearComments;
 
-export const postComment = (comment) => async (dispatch) => {
-  const { postId, body } = comment;
-  const response = await apiFetch(`/api/posts/${postId}/comments`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      body: body,
-    }),
-  });
-  if (response.ok) {
-    const newComment = await response.json();
-    dispatch(addComment(newComment));
-    return null;
-  }
-  else if (response.status < 500) {
-    const data = await response.json();
-    if (data.errors) {
-      return data.errors;
-    }
-  }
-  else{
-    return [{'errors': 'an error occured' }]
-  }
+export const loadComments = (postId) => async (dispatch) => {
+  dispatch(commentsLoading(postId));
+  const res = await api(`/api/posts/${postId}/comments`);
+  if (res.ok) dispatch(commentsLoaded(res.data.Comments));
+  else dispatch(commentsFailed());
+  return res;
 };
 
-/////// Newly Added///
+// The thunks below return null on success, or an array of error messages.
 
-export const updateComment = (payload) => async (dispatch) => {
-  const { commentId, body } = payload;
-  const response = await apiFetch(`/api/comments/${commentId}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      body: body,
-    }),
-  });
-
-  if (response.ok) {
-    let updatedComment = await response.json()
-    dispatch(
-      updateCommentBody({
-        body,
-        id: commentId,
-      })
-    );
-    return null;
-  }
-  else if (response.status < 500) {
-    const data = await response.json();
-    if (data.errors) {
-      return data.errors;
-    }
-  }
-  else{
-    return [{'errors': 'an error occured' }]
-  }
-
+export const addComment = (postId, body) => async (dispatch, getState) => {
+  const res = await api(`/api/posts/${postId}/comments`, { method: "POST", json: { body } });
+  if (!res.ok) return res.errors;
+  dispatch(commentAdded(res.data));
+  const post = getState().posts.byId[postId];
+  if (post) dispatch(patchPost({ id: postId, commentCount: post.commentCount + 1 }));
+  return null;
 };
 
-export const deleteComment = (commentId) => async (dispatch) => {
-  const response = await apiFetch(`/api/comments/${commentId}`, {
-    method: "DELETE",
-  });
-  if (response.ok) {
-    const data = await response.json();
-    dispatch(removeComment(commentId));
-    return data;
-  }
+export const editComment = (id, body) => async (dispatch) => {
+  const res = await api(`/api/comments/${id}`, { method: "PUT", json: { body } });
+  if (!res.ok) return res.errors;
+  dispatch(commentChanged(res.data));
+  return null;
 };
 
-/////// Newly Added///
-
-export const getAllComments = (id) => async (dispatch) => {
-  const response = await apiFetch(`/api/posts/${id}/comments`);
-
-  if (response.ok) {
-    const data = await response.json();
-    dispatch(setComments(data.Comments));
-    return data;
-  }
-
-  return response;
+export const deleteComment = (id) => async (dispatch, getState) => {
+  const comment = getState().comments.byId[id];
+  const res = await api(`/api/comments/${id}`, { method: "DELETE" });
+  if (!res.ok) return res.errors;
+  dispatch(commentRemoved(id));
+  const post = comment && getState().posts.byId[comment.postId];
+  if (post) dispatch(patchPost({ id: post.id, commentCount: Math.max(0, post.commentCount - 1) }));
+  return null;
 };
 
 export default commentsSlice.reducer;

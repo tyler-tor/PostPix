@@ -1,129 +1,77 @@
 import React, { useEffect, useState } from "react";
-import PostGrid from "../reUsedComponents/PostGrid";
 import { useSelector, useDispatch } from "react-redux";
-import { useParams } from "react-router";
-import { getAllUsers } from "../../store/users";
-import UserFollowerListModal from "../reUsedComponents/UserFollowerListModal";
-import {
-  addFollowing,
-  deleteFollowing,
-  getAllFollowing,
-} from "../../store/following";
-import { getAllFollowers } from "../../store/follower";
-import { getProfileFollowing } from "../../store/profile_following_store";
-import { getProfileUser } from "../../store/profileUser";
-import UserFollowingListModal from "../reUsedComponents/UserFollowingListModal";
-import './UserProfile.css'
+import PostGrid from "../reUsedComponents/PostGrid";
+import UserListModal from "../reUsedComponents/UserListModal";
+import { loadProfile } from "../../store/profile";
+import { setFollow } from "../../store/users";
+import "./UserProfile.css";
 
-const UserInfoBox = () => {
+const UserInfoBox = ({ userId }) => {
   const dispatch = useDispatch();
-  const { userId } = useParams();
   const currUser = useSelector((state) => state.session.user);
-
-  const posts = Object.values(useSelector((state) => state.posts));
-  const [isLoading, setIsLoading] = useState(false);
-  const [followBtn, setFollowBtn] = useState(false);
-  const [followTest, setFollowTest] = useState(false);
-  const [postCount, setPostCount] = useState(0);
-  const profileUser = useSelector(state => state.profileUser)
-
-  useEffect(() =>{
-
-    dispatch(getProfileUser(Number(userId))).then(() =>{
-      setIsLoading(true)
-    })
-  },[dispatch, userId])
+  const profile = useSelector((state) => state.profile);
+  const profileUser = useSelector((state) => state.users.byId[userId]);
+  const [followErrors, setFollowErrors] = useState([]);
 
   useEffect(() => {
-    // The profile payload says whether the logged-in user follows this person.
-    setFollowTest(profileUser.id === Number(userId) && !!profileUser.isFollowedByMe);
-  }, [userId, profileUser]);
+    dispatch(loadProfile(userId));
+  }, [dispatch, userId]);
 
-  //   //!might need to run dispatch to get all followers instead of following!
+  // Not loaded yet (or this profile failed): nothing to show. P31/Z3 add the
+  // loading, error and not-found states.
+  if (profile.userId !== userId || profile.status !== "ready" || !profileUser) return null;
 
-  // //!code here causes a crash if you click the follow button multiple times.
-  // //     setFollows('UnFollow')
-  // //     setFollows('Follow')
-  // //   }
-  // // }
-  // // }
-  const handleFollow = () => {
-    dispatch(addFollowing(Number(userId)));
-    setFollowTest(true);
+  const isMe = currUser.id === userId;
+
+  const handleFollow = async (follow) => {
+    setFollowErrors((await dispatch(setFollow(userId, follow))) || []);
   };
-
-  const handleUnFollow = () => {
-    dispatch(deleteFollowing(userId));
-    setFollowTest(false);
-  };
-
-  const userPosts = () => {
-    setPostCount(posts.filter((post) => post.userId == profileUser.id).length);
-  };
-
-  useEffect(() => {
-    userPosts();
-  }, [posts]);
-
-  // //     }
-  // //   }
-
-  useEffect(() => {
-    if (currUser.id !== Number(userId)){
-      setFollowBtn(true);
-
-    }
-    else{
-      setFollowBtn(false)
-    }
-  });
 
   return (
-    isLoading && (
-      <>
-        <div className="user-profile-header-container">
-          <div className="user-info-box-profile-photo-container">
-            <div id="user-profile-wrapper">
-              <img src={profileUser.profilePicture} alt="profile" />
+    <>
+      <div className="user-profile-header-container">
+        <div className="user-info-box-profile-photo-container">
+          <div id="user-profile-wrapper">
+            <img src={profileUser.profilePicture} alt="profile" />
+          </div>
+          <div className="user-profile-details-container">
+            <div className="username-and-follow-button-row">
+              <div className="username-for-user-profile">{profileUser.username}</div>
+              {!isMe &&
+                (profileUser.isFollowedByMe ? (
+                  <button onClick={() => handleFollow(false)} className="unfollow-button">
+                    Following
+                  </button>
+                ) : (
+                  <button onClick={() => handleFollow(true)} className="follow-button">
+                    Follow
+                  </button>
+                ))}
             </div>
-            <div className="user-profile-details-container">
-              <div className="username-and-follow-button-row">
-                <div className="username-for-user-profile">{profileUser.username}</div>
-                {followBtn && (
-                  <>
-                    {followTest ? (
-                      <button onClick={handleUnFollow} className="unfollow-button">Following</button>
-                    ) : (
-                      <button onClick={handleFollow} className="follow-button">Follow</button>
-                    )}
-                  </>
-                )}
+            {followErrors.map((error) => (
+              <div key={error}>{error}</div>
+            ))}
+            <div className="posts-followers-following-row">
+              <div>
+                <strong>{profileUser.postCount}</strong> Posts
               </div>
-              <div className="posts-followers-following-row">
-                <div className="">
-                  {" "}
-                  <strong>{postCount}</strong> Posts
-                </div>
-                <div className="posts-followers-following-row-children-except-first">
-                  {" "}
-                  <UserFollowerListModal userId={userId} />
-                </div>
-                <div className="posts-followers-following-row-children-except-first slight-margin">
-                  <strong>
-                    <UserFollowingListModal userId={userId}/>
-                  </strong>
-
-                </div>
+              <div className="posts-followers-following-row-children-except-first">
+                <UserListModal url={`/api/users/${userId}/followers`} dataKey="followers">
+                  <strong>{profileUser.followerCount}</strong> followers
+                </UserListModal>
               </div>
-              <div className="user-profile-caption">
-
+              <div className="posts-followers-following-row-children-except-first slight-margin">
+                <UserListModal url={`/api/users/${userId}/following`} dataKey="following">
+                  <strong>{profileUser.followingCount}</strong>{" "}
+                  <span className="following-text-list">following</span>
+                </UserListModal>
               </div>
             </div>
           </div>
         </div>
-        <PostGrid />
-      </>
-    )
+      </div>
+      <PostGrid postIds={profile.postIds} />
+    </>
   );
 };
 

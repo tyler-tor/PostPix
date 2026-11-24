@@ -1,0 +1,72 @@
+import { createSlice } from "@reduxjs/toolkit";
+import { api } from "../utils/api";
+
+// Every post the app has seen, keyed by id. Feeds and profiles only keep lists
+// of ids; this is the single place a post's data (likes, likedByMe, caption,
+// commentCount, author) lives, so a like in the modal shows up everywhere.
+const postsSlice = createSlice({
+  name: "posts",
+  initialState: { byId: {} },
+  reducers: {
+    upsertPosts(state, action) {
+      for (const post of action.payload) state.byId[post.id] = post;
+    },
+    patchPost(state, action) {
+      const { id, ...changes } = action.payload;
+      if (state.byId[id]) Object.assign(state.byId[id], changes);
+    },
+    // Other slices listen to these two (feeds, profile, users).
+    postCreated(state, action) {
+      state.byId[action.payload.id] = action.payload;
+    },
+    postRemoved(state, action) {
+      delete state.byId[action.payload.id];
+    },
+  },
+});
+
+export const { upsertPosts, patchPost, postCreated, postRemoved } = postsSlice.actions;
+
+export const selectPost = (id) => (state) => state.posts.byId[id];
+
+// Thunks return null on success, or an array of error messages.
+
+export const fetchPost = (id) => async (dispatch) => {
+  const res = await api(`/api/posts/${id}`);
+  if (res.ok) dispatch(upsertPosts([res.data]));
+  return res;
+};
+
+export const createPost = ({ caption, imgUrl }) => async (dispatch) => {
+  const res = await api("/api/posts/", { method: "POST", json: { caption, img_url: imgUrl } });
+  if (!res.ok) return res.errors;
+  dispatch(postCreated(res.data));
+  return null;
+};
+
+export const editCaption = (id, caption) => async (dispatch) => {
+  const res = await api(`/api/posts/${id}`, { method: "PUT", json: { caption } });
+  if (!res.ok) return res.errors;
+  dispatch(upsertPosts([res.data]));
+  return null;
+};
+
+export const deletePost = (id) => async (dispatch, getState) => {
+  const post = getState().posts.byId[id];
+  const res = await api(`/api/posts/${id}`, { method: "DELETE" });
+  if (!res.ok) return res.errors;
+  dispatch(postRemoved({ id, userId: post?.userId }));
+  return null;
+};
+
+// Like or unlike, depending on the current state of the post.
+export const toggleLike = (id) => async (dispatch, getState) => {
+  const post = getState().posts.byId[id];
+  if (!post) return ["Post not found"];
+  const res = await api(`/api/posts/${id}/likes`, { method: post.likedByMe ? "DELETE" : "POST" });
+  if (!res.ok) return res.errors;
+  dispatch(patchPost({ id, likes: res.data.likes, likedByMe: res.data.likedByMe }));
+  return null;
+};
+
+export default postsSlice.reducer;

@@ -1,10 +1,8 @@
-import React, {useEffect} from "react";
+import React from "react";
 import CircleFaces from "./CircleFaces";
 import ActualFeed from "./ActualFeed";
 import "./HomeFeed.css";
 import SideStuff from "./SideStuff";
-import { useSelector, useDispatch } from "react-redux";
-import { getAllFollowingPosts } from "../../store/followingPosts";
 
 const HomeFeed = () => {
 

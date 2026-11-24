@@ -6,6 +6,8 @@ from app.forms.update_post import UpdatePost
 from app.forms.create_comment import CreateComment
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
+from app.api.serializers import serialize_post, serialize_posts
 
 
 
@@ -27,27 +29,16 @@ def validation_errors_to_error_messages(validation_errors):
 def posts():
     posts = db.session.scalars(
         select(Post)
-        .options(db.joinedload(Post.users))
+        .options(selectinload(Post.users))
         .order_by(Post.created_at.desc(), Post.id.desc())
     ).all()
-    posts_dict = {}
-    posts_dict["Posts"] = [{**post.to_dict(), 'users': {
-        'username': post.users.username, 'profilePicture': post.users.profile_picture,
-        'userId': post.users.id}} for post in posts]
-    return posts_dict
+    return {'Posts': serialize_posts(posts, current_user.id)}
 
 @post_routes.route('/<int:id>', methods=['GET'])
 @login_required
 def get_post_by_id(id):
     post = db.get_or_404(Post, id, description='Post not found')
-    post_dict = post.to_dict()
-    user = post.users
-    post_dict['users'] = {
-        'profilePicture' : user.profile_picture,
-        'userId' : user.id,
-        'username' : user.username
-    }
-    return post_dict
+    return serialize_post(post, current_user.id)
 
 @post_routes.route('/', methods=['POST'])
 @login_required
@@ -64,14 +55,7 @@ def create_post():
         db.session.commit()
         # Return the post we just created (not "the newest post in the table",
         # which could belong to someone else if two users post at once).
-        post_dict = post.to_dict()
-        user = post.users
-        post_dict['users'] = {
-            'profilePicture' : user.profile_picture,
-            'userId' : user.id,
-            'username' : user.username
-        }
-        return post_dict
+        return serialize_post(post, current_user.id)
     return {'errors': validation_errors_to_error_messages(form.errors)}, 400
 
 
@@ -86,17 +70,9 @@ def update_post(id):
     if post.user_id != current_user.id:
         return {'errors': ['Forbidden']}, 403
     if form.validate_on_submit():
-        user = db.session.get(User, post.user_id)
         post.caption = form.data['caption']
         db.session.commit()
-        post_dict = post.to_dict()
-        #! updated code to match the return from the other post routes. needed to include the associated user.
-        post_dict['users'] = {
-            'profilePicture' : user.profile_picture,
-            'userId' : user.id,
-            'username' : user.username
-        }
-        return post_dict
+        return serialize_post(post, current_user.id)
     return {'errors': validation_errors_to_error_messages(form.errors)}, 400
 
 
@@ -153,7 +129,7 @@ def like_post(id):
         db.session.rollback()
         return {'errors': ['You already liked this post']}, 409
     db.session.refresh(post)
-    return {'likes': post.likes, 'postId': post.id}
+    return {'likes': post.likes, 'postId': post.id, 'likedByMe': True}
 
 
 @post_routes.route('/<int:id>/likes', methods=['DELETE'])
@@ -174,7 +150,7 @@ def unlike_post(id):
     db.session.commit()
     # Re-read so we return the NEW count (the old code returned the stale one).
     db.session.refresh(post)
-    return {'postId': post.id, 'likes': post.likes}
+    return {'postId': post.id, 'likes': post.likes, 'likedByMe': False}
 
 
 @post_routes.route('/<int:id>/comments')

@@ -4,6 +4,7 @@ from sqlalchemy import select, or_
 from sqlalchemy.orm import selectinload
 from app.models import db, Post
 from app.models.user import follows
+from app.api.serializers import serialize_posts
 
 me_routes = Blueprint('me', __name__)
 
@@ -26,8 +27,4 @@ def me_following_posts():
         .options(selectinload(Post.users))
         .order_by(Post.created_at.desc(), Post.id.desc())
     ).all()
-    return {'Posts': [{**post.to_dict(), 'users': {
-        'username': post.users.username,
-        'profilePicture': post.users.profile_picture,
-        'userId': post.users.id
-    }} for post in posts]}
+    return {'Posts': serialize_posts(posts, current_user.id)}

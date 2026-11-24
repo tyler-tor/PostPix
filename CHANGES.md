@@ -979,3 +979,61 @@ look and feel (P27, P32, P28, P29, P30, P31), then the walkthrough update.
   unchanged. The 4.7 MB `stock.jpg` is still imported at this point (P24 removes it).
   Lazy routes show a blank page for a moment on a slow connection; P31 adds proper loading
   states.
+
+## Z1 — One clean Redux store; likes loaded once (add-on)
+- **Problem:** The store had 14 slices that overlapped or were never read: `follow`,
+  `followers`, `profileFollowing`, `notFollowed`, `users`, `searchUsers`, `profileUser`,
+  `currentPost`, `userLikes`, `userPostLikes`, `followingPosts`, `posts`, ... Several held
+  the same people or posts under different names, many were written but nothing read them
+  (`searchUsers`, `followers`), and components re-fetched everything to keep them in sync.
+  Worst: every post tile ran `GET /api/users/likes` when it mounted, so the Explore page
+  sent about 50 identical requests, and `PostGrid` re-requested all posts on top of the
+  page that had just loaded them.
+- **What changed:**
+  - **Backend:** post payloads now include `likedByMe` and `commentCount`, computed for a
+    whole list with 2 extra queries (not one per post) by the new
+    `app/api/serializers.py`. Used by the explore list, home feed, single post, create and
+    edit post, and the profile's `Posts`. Like/unlike responses include `likedByMe`. So the
+    frontend never needs to ask "which posts have I liked?" (`GET /api/users/likes` is no
+    longer called; the endpoint is kept, now one query).
+  - **Store:** six slices instead of fourteen:
+    `session` (the logged-in user), `users` (users by id plus the home page's
+    `followingIds` / `suggestionIds`), `posts` (posts by id: the one place post data
+    lives), `feeds` (ordered post ids for `home` and `explore`, with a load status),
+    `profile` (open profile: user id, status, post ids) and `comments` (comments of the
+    open post). Feeds and profiles hold only ids, so a like in the modal updates the feed,
+    the grid and the modal at once. Removed: `follow`, `followers`, `profileFollowing`,
+    `notFollowed`, `searchUsers`, `profileUser`, `currentPost`, `userLikes`,
+    `userPostLikes`, `followingPosts` (and the old `post.js`).
+  - New post/comment/follow thunks return `null` on success or an array of error messages
+    (the old ones returned a mix of arrays, `undefined` and response objects). New
+    `utils/api.js` wraps `apiFetch` into `{ ok, status, data, errors }` and never throws.
+  - Lists that only one screen needs (followers, following, people who liked a post, the
+    nav search results) are fetched by that screen with a small `hooks/useFetch.js` and are
+    not stored; one `UserListModal` replaces three near-identical modal components.
+  - Logging out resets every slice, so the next user never sees the previous user's likes
+    or feeds (the old store kept them).
+  - The home feed is shown in the order the server sent (newest first). The old code
+    reversed an object keyed by id, which was newest-by-id and ignored the timestamps.
+  - Components changed to read the new store: home feed, avatar row, suggestions,
+    profile, explore, post grid, post modal (reads the post by id; no per-tile requests),
+    comments, caption/comment edit and delete, new-post form. The home feed's like button
+    now works (it was commented out), with `aria-pressed`.
+- **Files:** `app/api/serializers.py` (new), `app/api/{post,me,user}_routes.py`,
+  `react-app/src/store/*` (6 slices + `index.js`), `react-app/src/utils/api.js`,
+  `react-app/src/hooks/useFetch.js`, and the components listed above.
+- **How to verify:** test-client script (15 checks): `likedByMe` and `commentCount` match the
+  database for the explore list, home feed and profile, constant query count (5 including
+  the login lookup) for any number of posts, like/unlike flip `likedByMe`, create/edit
+  payloads. Earlier backend scripts still pass. jsdom run on production **and** development
+  bundles (development mode turns on Redux Toolkit's mutation and non-serializable checks):
+  login, home feed, explore (50 images), open post, like (0 -> 1, red heart), comment,
+  profile (5 posts, 7 followers, 5 following), follow/unfollow on `/9` (followers 0 -> 1 ->
+  0), logout; **0 console errors**. Request log for that run: 0 calls to
+  `/api/users/likes` (was about 50 on Explore alone) and 1 call to `/api/posts/` for Explore.
+- **Things to watch:** every component that read the old slice names changed in this
+  commit; anything not in this repo that read them would break (nothing known). In
+  development React StrictMode runs effects twice, so the request counts double there.
+  `redux-logger` is still installed until Z2. The profile header shows nothing while
+  loading or when the user does not exist until Z3 and P31 add those states. The nav
+  search still downloads up to 100 users once (replaced by server search in P23).

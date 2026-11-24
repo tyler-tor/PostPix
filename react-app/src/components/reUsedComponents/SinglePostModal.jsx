@@ -1,101 +1,44 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { NavLink } from "react-router";
-import { Modal } from "../../context/Modal";
-import "./SinglePostModal.css";
 import { useSelector, useDispatch } from "react-redux";
 import { AiOutlineHeart, AiFillHeart } from "react-icons/ai";
-import { IoChatbubbleOutline } from "react-icons/io5";
-import { FaRegSmile } from "react-icons/fa";
-import EditCaptionFormModal from "./EditCaptionModal";
-import DeletePostModal from "./DeletePostModal/index";
-import { deletePost } from "../../store/post";
-import { getAllComments } from "../../store/comments";
-import { postComment } from "../../store/comments";
-import CommentSettingsModal from "./EditCommentModal";
-import UserLikedListModal from "./UserLikedListModal";
-import {
-  deleteUserLikedPostId,
-  getUserLikedPostId,
-} from "../../store/user_post_like_list";
-import { addUserLikedPostId } from "../../store/user_post_like_list";
-import { getCurrentPost } from "../../store/currentPost";
+import { Modal } from "../../context/Modal";
+import { toggleLike } from "../../store/posts";
+import { addComment } from "../../store/comments";
 import EditCaptionThreeDotsModal from "./EditCaptionSettingsModal";
+import UserListModal from "./UserListModal";
 import CommentContainer from "./CommentContainer";
 import formatDate from "../../utils/formatDate";
+import "./SinglePostModal.css";
 
-const SinglePostModal = ({ post }) => {
+// A post thumbnail that opens the full post (image, comments, likes) in a modal.
+// It only needs the post id: the post itself, including whether you liked it,
+// comes from the store, so a grid of 50 tiles makes no extra requests.
+const SinglePostModal = ({ postId }) => {
   const [showModal, setShowModal] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [myPost, setMyPost] = useState(false);
-  const [myComment, setMyComment] = useState(false);
   const [comment, setComment] = useState("");
-  const [likePost, setLikePost] = useState(false);
-  const user = useSelector((state) => state.session.user);
-  const likes = Object.values(useSelector((state) => state.userPostLikes));
-  const comments = Object.values(useSelector((state) => state.comments));
+  const [commentErrors, setCommentErrors] = useState([]);
   const dispatch = useDispatch();
+  const user = useSelector((state) => state.session.user);
+  const post = useSelector((state) => state.posts.byId[postId]);
 
-  //   //!maybe move to the click event? everytime explore page renders it gets ALL of the posts comments.
-
-  useEffect(() => {
-    dispatch(getUserLikedPostId()).then((res) => {
-      res.forEach((el) => {
-        if (el.postId === post.id) {
-          setLikePost(true);
-        }
-      });
-    });
-  }, [dispatch]);
-
-  useEffect(() => {
-    if (user.id === post.userId) {
-      setMyPost(true);
-    }
-  }, [post, user]);
-
-  const clickModal = () => {
-    setShowModal(true);
-  };
-
-  const updateComment = (e) => {
-    setComment(e.target.value);
-  };
+  if (!post) return null;
+  const myPost = user.id === post.userId;
 
   const submitComment = async (e) => {
     e.preventDefault();
-    setComment("");
-    const payload = {
-      postId: post.id,
-      body: comment,
-    };
-
-    let newComment = await dispatch(postComment(payload)).then((res) => {
-      if(res){
-        window.alert('Please Fill in the comment section.')
-      }
-
-    });
-
-  };
-
-  //! This is used to test deleting without a modal. When deleting with modal
-  //! there is a warning for a cleanup in a useEffect function.
-  //! i am guessing this is because when a post is deleted, one of the modals is not
-  //! getting cleaned up propery.
-
-  const handleLikeButton = (e) => {
-    e.preventDefault();
-    if (!likePost) {
-      dispatch(addUserLikedPostId(post.id));
+    const errors = await dispatch(addComment(post.id, comment));
+    if (errors) {
+      setCommentErrors(errors);
     } else {
-      dispatch(deleteUserLikedPostId(post.id));
+      setComment("");
+      setCommentErrors([]);
     }
-    setLikePost(!likePost);
   };
 
   return (
     <>
-      <img src={post.imgUrl} alt="" onClick={clickModal} />
+      <img src={post.imgUrl} alt={post.caption || `Post by ${post.users.username}`} onClick={() => setShowModal(true)} />
       {showModal && (
         <Modal onClose={() => setShowModal(false)}>
           <div className="post-modal-container">
@@ -109,33 +52,28 @@ const SinglePostModal = ({ post }) => {
                 </div>
                 <NavLink
                   to={`/${post.users.userId}`}
+                  onClick={() => setShowModal(false)}
                   className="username-styling-in-post-modal"
                 >
                   <strong>{post.users.username}</strong>
                 </NavLink>
-
                 <div className="post-modal-content-container-caption">
-                  {myPost && (
-                    <>
-                      <EditCaptionThreeDotsModal postId={post.id} />
-                    </>
-                  )}
+                  {myPost && <EditCaptionThreeDotsModal postId={post.id} />}
                 </div>
               </div>
 
               <div className="post-modal-comments-section">
-                <CommentContainer
-                  postId={post.id}
-                  setShowModal={setShowModal}
-                />
-                {isLoaded && (
-                  <>
-                  </>
-                )}
+                <CommentContainer postId={post.id} />
               </div>
               <div className="post-modal-like-comment-icon">
-                <button className="no-styling" onClick={handleLikeButton}>
-                  {likePost ? (
+                <button
+                  type="button"
+                  className="no-styling"
+                  onClick={() => dispatch(toggleLike(post.id))}
+                  aria-pressed={post.likedByMe}
+                  aria-label={post.likedByMe ? "Unlike" : "Like"}
+                >
+                  {post.likedByMe ? (
                     <AiFillHeart className="post-modal-icons-likes-comments no-left-padding red" />
                   ) : (
                     <AiOutlineHeart className="post-modal-icons-likes-comments no-left-padding" />
@@ -143,28 +81,29 @@ const SinglePostModal = ({ post }) => {
                 </button>
               </div>
               <div className="post-modal-likes-count">
-                <UserLikedListModal postId={post.id} />
+                <UserListModal url={`/api/posts/${post.id}/likes/users`} dataKey="user">
+                  {post.likes} likes
+                </UserListModal>
               </div>
               <div className="post-modal-date-posted">{formatDate(post.createdAt)}</div>
               <div className="post-modal-add-comment-container">
                 <div className="left-hand-container-for-post-modal-comment-input">
-                  <form className="comment-form-wrapper">
+                  <form className="comment-form-wrapper" onSubmit={submitComment}>
                     <div className="comment-form-container">
                       <input
                         type="text"
-                        placeholder={"Add a comment..."}
+                        placeholder="Add a comment..."
                         value={comment}
-                        onChange={updateComment}
+                        onChange={(e) => setComment(e.target.value)}
                         className="comment-input-styling"
                       />
-                      <div
-                        className={`right-hand-container-for-post-modal-comment-input`}
-                      >
-                        <button type="submit" onClick={submitComment}>
-                          Post
-                        </button>
+                      <div className="right-hand-container-for-post-modal-comment-input">
+                        <button type="submit">Post</button>
                       </div>
                     </div>
+                    {commentErrors.map((error) => (
+                      <div key={error}>{error}</div>
+                    ))}
                   </form>
                 </div>
               </div>

@@ -1,29 +1,81 @@
 import { createSlice } from "@reduxjs/toolkit";
-import apiFetch from "../utils/apiFetch";
-import { keyBy } from "./helpers";
+import { api } from "../utils/api";
+import { patchUser } from "./session";
+import { postCreated, postRemoved } from "./posts";
 
-// All users, keyed by id.
+// Users the app has seen, keyed by id (profile data, follower counts, whether
+// you follow them), plus the two small lists the home page needs:
+//   followingIds   people the logged-in user follows (the avatar row)
+//   suggestionIds  people the logged-in user could follow
 const usersSlice = createSlice({
   name: "users",
-  initialState: {},
+  initialState: { byId: {}, followingIds: [], suggestionIds: [] },
   reducers: {
-    // Replace the whole list (so removed items disappear).
-    setUsers: (state, action) => keyBy(action.payload, "id"),
+    // Merge, so a short summary never wipes the counts we already know.
+    upsertUsers(state, action) {
+      for (const user of action.payload) {
+        state.byId[user.id] = { ...state.byId[user.id], ...user };
+      }
+    },
+    setFollowingIds(state, action) {
+      state.followingIds = action.payload;
+    },
+    setSuggestionIds(state, action) {
+      state.suggestionIds = action.payload;
+    },
+    followChanged(state, action) {
+      const { id, followed } = action.payload;
+      state.followingIds = state.followingIds.filter((x) => x !== id);
+      if (followed) state.followingIds.push(id);
+      if (followed) state.suggestionIds = state.suggestionIds.filter((x) => x !== id);
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(postCreated, (state, action) => {
+        const user = state.byId[action.payload.userId];
+        if (user) user.postCount += 1;
+      })
+      .addCase(postRemoved, (state, action) => {
+        const user = state.byId[action.payload.userId];
+        if (user && user.postCount > 0) user.postCount -= 1;
+      });
   },
 });
 
-const { setUsers } = usersSlice.actions;
+export const { upsertUsers } = usersSlice.actions;
+const { setFollowingIds, setSuggestionIds, followChanged } = usersSlice.actions;
 
-export const getAllUsers = () => async (dispatch) => {
-    const response = await apiFetch('/api/users/')
+export const selectUser = (id) => (state) => state.users.byId[id];
 
-    if (response.ok) {
-        const data = await response.json();
-        dispatch(setUsers(data.users))
-        return data
-    }
-    return response
-}
-//!moved to its own store.
+export const loadFollowing = () => async (dispatch, getState) => {
+  const me = getState().session.user;
+  const res = await api(`/api/users/${me.id}/following`);
+  if (res.ok) {
+    dispatch(upsertUsers(res.data.following));
+    dispatch(setFollowingIds(res.data.following.map((user) => user.id)));
+  }
+  return res;
+};
+
+export const loadSuggestions = () => async (dispatch, getState) => {
+  const me = getState().session.user;
+  const res = await api(`/api/users/${me.id}/notfollowing?limit=8`);
+  if (res.ok) {
+    dispatch(upsertUsers(res.data.users));
+    dispatch(setSuggestionIds(res.data.users.map((user) => user.id)));
+  }
+  return res;
+};
+
+// Follow (follow = true) or unfollow a user. Returns null or an array of errors.
+export const setFollow = (id, follow) => async (dispatch) => {
+  const res = await api(`/api/users/${id}/follow`, { method: follow ? "POST" : "DELETE" });
+  if (!res.ok) return res.errors;
+  dispatch(upsertUsers([res.data.followingUser]));
+  dispatch(followChanged({ id, followed: follow }));
+  dispatch(patchUser({ followingCount: res.data.currentUser.followingCount }));
+  return null;
+};
 
 export default usersSlice.reducer;

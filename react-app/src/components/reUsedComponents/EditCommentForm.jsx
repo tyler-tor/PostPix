@@ -1,57 +1,45 @@
 import React, { useState } from "react";
-import { Modal } from "../../context/Modal";
-import { TbDots } from "react-icons/tb";
 import { useSelector, useDispatch } from "react-redux";
-import { updateComment, deleteComment } from "../../store/comments";
+import { editComment, deleteComment } from "../../store/comments";
 
 const EditCommentForm = ({ onClose, commentId }) => {
   const [errors, setErrors] = useState([]);
-  const comment = useSelector((state) => state.comments[commentId].body);
-  const [tempComment, setTempComment] = useState(comment);
+  const comment = useSelector((state) => state.comments.byId[commentId]);
+  const [body, setBody] = useState(comment?.body ?? "");
   const dispatch = useDispatch();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    const payload = {
-      body: tempComment,
-      commentId: commentId,
-    };
-
-    let updatedComment = await dispatch(updateComment(payload)).then((res)=>{
-      if(res){
-        setErrors(res)
-      }
-      else{
-        onClose();
-      }
-    })
+    const result = await dispatch(editComment(commentId, body));
+    if (result) setErrors(result);
+    else onClose();
   };
 
   const destroyComment = async (e) => {
     e.preventDefault();
-    dispatch(deleteComment(commentId));
+    const result = await dispatch(deleteComment(commentId));
+    if (result) setErrors(result);
   };
 
   return (
     <div className="post-form-wrapper">
       <form onSubmit={handleSubmit} className="post-form-container">
-              <ul>
-                {errors.map((error, idx) => (
-                  <li key={idx}>{error}</li>
-                ))}
-              </ul>
+        <ul>
+          {errors.map((error) => (
+            <li key={error}>{error}</li>
+          ))}
+        </ul>
         <div className="post-form-children">
           <input
             type="text"
             placeholder="comment"
             required
-            value={tempComment}
-            onChange={(e) => setTempComment(e.target.value)}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
           />
         </div>
         <div className="post-form-children">
-          <button className="same-button" type="submit" onClick={handleSubmit}>
+          <button className="same-button" type="submit">
             Submit
           </button>
         </div>

@@ -1,28 +1,29 @@
 import React, { useEffect } from "react";
 import { NavLink } from "react-router";
 import { useSelector, useDispatch } from "react-redux";
-import { getAllFollowing } from "../../store/following";
+import { loadFollowing } from "../../store/users";
 
+// Row of avatars: the people you follow.
 const CircleFaces = () => {
-  const dispatch = useDispatch()
-  const user = useSelector((state) => state.session.user);
-  const following = Object.values(useSelector((state) => state.follow));
+  const dispatch = useDispatch();
+  const byId = useSelector((state) => state.users.byId);
+  const followingIds = useSelector((state) => state.users.followingIds);
 
   useEffect(() => {
-    dispatch(getAllFollowing(user.id))
-  }, [dispatch])
+    dispatch(loadFollowing());
+  }, [dispatch]);
+
   return (
     <>
-    {following.map(followed => {
-      return (
-        <NavLink to={`/${followed.id}`}
-        key={followed.id}
-        className="circle-face-children-containers">
-          <img src={followed.profilePicture} alt="" />
-          <div>{followed.username}</div>
-        </NavLink>
-      )
-    })}
+      {followingIds.map((id) => {
+        const followed = byId[id];
+        return (
+          <NavLink to={`/${id}`} key={id} className="circle-face-children-containers">
+            <img src={followed.profilePicture} alt="" />
+            <div>{followed.username}</div>
+          </NavLink>
+        );
+      })}
     </>
   );
 };

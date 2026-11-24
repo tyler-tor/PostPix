@@ -1,32 +1,35 @@
+import { useState } from "react";
 import { useDispatch } from "react-redux";
-import { deletePost } from "../../../store/post";
+import { deletePost } from "../../../store/posts";
 
 const DeletePost = ({ onClose, postId }) => {
   const dispatch = useDispatch();
+  const [errors, setErrors] = useState([]);
 
   const handleYes = async (e) => {
     e.preventDefault();
-    const del = await dispatch(deletePost(postId.postId)).then(() => {
-      //!commented this out because it seemed it was causing a memory leak.
-      //!model still closes even though it is commented out.
-    });
-  };
-
-  const handleNo = (e) => {
-    e.preventDefault();
-    onClose();
+    const result = await dispatch(deletePost(postId));
+    if (result) setErrors(result);
   };
 
   return (
-    <>
-      <div className="delete-post-container">
-        <div>Are you sure you want to delete the post?</div>
-        <div className="delete-post-button-container">
-          <button onClick={handleYes}>Yes</button>
-          <button onClick={handleNo}>No</button>
-        </div>
+    <div className="delete-post-container">
+      <div>Are you sure you want to delete the post?</div>
+      {errors.map((error) => (
+        <div key={error}>{error}</div>
+      ))}
+      <div className="delete-post-button-container">
+        <button onClick={handleYes}>Yes</button>
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            onClose();
+          }}
+        >
+          No
+        </button>
       </div>
-    </>
+    </div>
   );
 };
 

@@ -12,10 +12,15 @@ const sessionSlice = createSlice({
     removeUser(state) {
       state.user = null;
     },
+    // Merge fresh fields (e.g. followingCount) into the logged-in user.
+    patchUser(state, action) {
+      if (state.user) Object.assign(state.user, action.payload);
+    },
   },
 });
 
 const { setUser, removeUser } = sessionSlice.actions;
+export const patchUser = sessionSlice.actions.patchUser;
 
 export const authenticate = () => async (dispatch) => {
   const response = await apiFetch("/api/auth/", {

@@ -1,34 +1,31 @@
-import React, { useEffect} from "react"
-import { NavLink } from "react-router"
-import { useSelector, useDispatch } from "react-redux"
-import { getNonFollowing } from "../../store/nonFollowed"
-import './SideNonFollow.css'
+import React, { useEffect } from "react";
+import { NavLink } from "react-router";
+import { useSelector, useDispatch } from "react-redux";
+import { loadSuggestions } from "../../store/users";
+import "./SideNonFollow.css";
 
-const SideNonFollowedUsers = ({userId}) => {
-    const dispatch = useDispatch()
-    const nonFollowers = Object.values(useSelector(state => state.notFollowed))
-    useEffect(() => {
-        dispatch(getNonFollowing(userId))
-    }, [dispatch])
+// "Check out these users": people you do not follow yet.
+const SideNonFollowedUsers = () => {
+  const dispatch = useDispatch();
+  const byId = useSelector((state) => state.users.byId);
+  const suggestionIds = useSelector((state) => state.users.suggestionIds);
 
-    return (
-        <div className="side-non-follower-list">
-            {nonFollowers.map(user => {
-                return (
-                    <div className="each-non-follower"
-                    key={user.id}>
-                        <img
-                        className="non-follower-picture"
-                        src={user.profilePicture}
-                        alt="example post"
-                        />
-                        <NavLink to={`/${user.id}`}
-                        className='non-follower-link'>{user.username}</NavLink>
-                    </div>
-                )
-            })}
+  useEffect(() => {
+    dispatch(loadSuggestions());
+  }, [dispatch]);
+
+  return (
+    <div className="side-non-follower-list">
+      {suggestionIds.map((id) => (
+        <div className="each-non-follower" key={id}>
+          <img className="non-follower-picture" src={byId[id].profilePicture} alt="" />
+          <NavLink to={`/${id}`} className="non-follower-link">
+            {byId[id].username}
+          </NavLink>
         </div>
-    )
-}
+      ))}
+    </div>
+  );
+};
 
-export default SideNonFollowedUsers
+export default SideNonFollowedUsers;

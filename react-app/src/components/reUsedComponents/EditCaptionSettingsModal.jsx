@@ -4,22 +4,20 @@ import { TbDots } from "react-icons/tb";
 import EditCaptionFormModal from "./EditCaptionModal";
 import DeletePostModal from "./DeletePostModal";
 
-const EditCaptionThreeDotsModal = (postId) => {
+// The "..." menu on your own post: edit the caption or delete the post.
+const EditCaptionThreeDotsModal = ({ postId }) => {
   const [showModal, setShowModal] = useState(false);
 
   return (
     <>
-      <a className="" onClick={() => setShowModal(true)}>
+      <a onClick={() => setShowModal(true)}>
         <TbDots className="the-three-dots" />
       </a>
       {showModal && (
         <Modal onClose={() => setShowModal(false)}>
           <div className="post-settings-modal-container-new">
-            <EditCaptionFormModal postId={postId} onClose={() => setShowModal(false)}/>
-            <DeletePostModal
-              postId={postId}
-              className="post-settings-modal-button-new except-top"
-            />
+            <EditCaptionFormModal postId={postId} onClose={() => setShowModal(false)} />
+            <DeletePostModal postId={postId} />
           </div>
         </Modal>
       )}

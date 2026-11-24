@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { Navigate,useNavigate } from "react-router";
-import { addPost } from "../../store/post";
+import { useNavigate } from "react-router";
+import { createPost } from "../../store/posts";
 import ImageUploadComponent from "./ImageUploadComponent";
 import './NavBar.css'
 
@@ -14,42 +14,18 @@ const PostForm = ({ onClose }) => {
   const navigate = useNavigate();
 
   const onPostSubmit = async (e) => {
-    // Need to create a function that posts to database
     e.preventDefault();
-    if(user){
-      let post = {
-                  userId: user.id,
-                  caption: caption,
-                  imgUrl: url
-                }
-      if(url){
-        return await dispatch(addPost(post))
-        .then((res)=>{
-          if(res){
-            setErrors(res)
-
-          }
-          else{
-            navigate(`/${user.id}`)
-
-            onClose()
-
-          }
-        })
+    if (!url) {
+      setErrors(["Upload an image first."]);
+      return;
     }
-      else{
-        window.alert('you must upload an image')
-      }
-
+    const result = await dispatch(createPost({ caption, imgUrl: url }));
+    if (result) {
+      setErrors(result);
+    } else {
+      navigate(`/${user.id}`);
+      onClose();
     }
-  };
-
-  const updateCaption = (e) => {
-    setCaption(e.target.value);
-  };
-
-  const updateUrl = (e) => {
-    setUrl(e.target.value);
   };
 
   return (
@@ -57,8 +33,8 @@ const PostForm = ({ onClose }) => {
       <ImageUploadComponent setUrl={setUrl} />
       <form className="post-form-container" onSubmit={onPostSubmit}>
         <div>
-          {errors.map((error, ind) => (
-            <div key={ind}>{error}</div>
+          {errors.map((error) => (
+            <div key={error}>{error}</div>
           ))}
         </div>
         <div className="post-form-children">
@@ -68,7 +44,7 @@ const PostForm = ({ onClose }) => {
             type="text"
             placeholder="Caption"
             value={caption}
-            onChange={updateCaption}
+            onChange={(e) => setCaption(e.target.value)}
           />
         </div>
         <div className="post-form-children">

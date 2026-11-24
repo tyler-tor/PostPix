@@ -1,44 +1,26 @@
 import React, { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { Navigate } from "react-router";
-import { updatePost } from "../../store/post";
+import { editCaption } from "../../store/posts";
 
 const EditCaptionForm = ({ onClose, postId }) => {
   const [errors, setErrors] = useState([]);
-  const [caption, setCaption] = useState("");
-  const user = useSelector((state) => state.session.user);
+  const current = useSelector((state) => state.posts.byId[postId]?.caption ?? "");
+  const [caption, setCaption] = useState(current);
   const dispatch = useDispatch();
 
   const onCaptionSubmit = async (e) => {
     e.preventDefault();
-    // Need to create a function that posts to database
-    let editedCaption = {
-                id : postId.postId,
-                caption: caption,
-              }
-
-    await dispatch(updatePost(editedCaption)).then((res)=>{
-      if(res){
-        setErrors(res)
-      }
-      else{
-        onClose();
-      }
-    })
-    .catch(e => {
-    })
-  };
-
-  const updateCaption = (e) => {
-    setCaption(e.target.value);
+    const result = await dispatch(editCaption(postId, caption));
+    if (result) setErrors(result);
+    else onClose();
   };
 
   return (
     <div className="post-form-wrapper">
       <form className="post-form-container" onSubmit={onCaptionSubmit}>
         <div>
-          {errors.map((error, ind) => (
-            <div key={ind}>{error}</div>
+          {errors.map((error) => (
+            <div key={error}>{error}</div>
           ))}
         </div>
         <div className="post-form-children">
@@ -47,7 +29,7 @@ const EditCaptionForm = ({ onClose, postId }) => {
             type="text"
             placeholder="Caption"
             value={caption}
-            onChange={updateCaption}
+            onChange={(e) => setCaption(e.target.value)}
           />
         </div>
         <div className="post-form-children">

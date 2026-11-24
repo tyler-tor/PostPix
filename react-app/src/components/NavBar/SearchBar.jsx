@@ -1,104 +1,46 @@
-import React, { useEffect, useState } from "react";
-import { useSelector, useDispatch } from "react-redux";
-import { NavLink, useNavigate } from "react-router";
-import { getAllUsers } from "../../store/users";
-import { setSearchUsers } from "../../store/search_users";
+import React, { useState } from "react";
+import { NavLink } from "react-router";
+import useFetch from "../../hooks/useFetch";
 import "./SearchBar.css";
-import { getProfileUser } from "../../store/profileUser";
 
+// Type a username, get a dropdown of matching people.
+// (P23 moves the matching to the server; for now the list is fetched once.)
 const SearchBar = () => {
   const [searchInput, setSearchInput] = useState("");
-  const users = Object.values(useSelector((state) => state.users));
-  const [searchEmpty, setSearchEmpty] = useState(true);
-  const [hasInputted, setHasInputted] = useState(false);
+  const { data } = useFetch("/api/users/?limit=100");
+  const users = data?.users ?? [];
 
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
+  const term = searchInput.trim().toLowerCase();
+  const matches = term
+    ? users.filter((user) => user.username.toLowerCase().startsWith(term)).slice(0, 10)
+    : [];
 
-  useEffect(() => {
-    dispatch(getAllUsers()).then(() => {
-    });
-  }, [dispatch]);
-
-  useEffect(() =>{
-    if(document.getElementById('search-nav-link')){
-      setSearchEmpty(false)
-    }
-    else{
-      setSearchEmpty(true)
-    }
-  },[searchInput])
-
-  const updateSearch = (e) => {
-    setSearchInput(e.target.value);
-  };
-  const handleNavClick = (e) => {
-    setSearchInput("");
-  };
-
-  const handleSearch = (e) => {
-    //!functionality to save the searched users in a state. We could use this later to create a search result page,
-    //! but honestly i think the drop down search is ok.
-    const res = users.filter((user) => {
-      const input = searchInput.toLowerCase();
-      const name = user.username.toLowerCase();
-      if (name.startsWith(input)) {
-        return true;
-      }
-    });
-    dispatch(setSearchUsers(res));
-  };
-
-  //TODO when user clicks search, redirect to new page with a list of users that match search.
   return (
-    <>
-      <div className="search-container">
-        <div className="search-inner">
-
-          <input
-            type="text"
-            value={searchInput}
-            onChange={updateSearch}
-            placeholder="Search for a user"
-          />
-        </div>
-
-        <div className="dropdown">
-          {users &&
-            users
-              .filter((user) => {
-                const searchTerm = searchInput.toLowerCase();
-                const name = user.username.toLowerCase();
-                return (
-                  searchTerm &&
-                  name.startsWith(searchTerm)
-                );
-              })
-              .slice(0, 10)
-              .map((item) => {
-                return (
-                  <NavLink
-                    key={item.id}
-                    to={`/${item.id}`}
-                    onClick={() => {
-                      dispatch(getProfileUser(item.id))
-                      setSearchInput('')
-                    }}
-                    className={"dropdown-row"}
-                    id='search-nav-link'
-                  >
-                    <img src={item.profilePicture} className="search-pic" />
-                    <div className="search-dropdown-name">{item.username}</div>
-                  </NavLink>
-                );
-              })}
-              {
-                searchEmpty && searchInput &&
-                  <div> No users with that username found! </div>
-              }
-        </div>
+    <div className="search-container">
+      <div className="search-inner">
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Search for a user"
+        />
       </div>
-    </>
+
+      <div className="dropdown">
+        {matches.map((item) => (
+          <NavLink
+            key={item.id}
+            to={`/${item.id}`}
+            onClick={() => setSearchInput("")}
+            className="dropdown-row"
+          >
+            <img src={item.profilePicture} className="search-pic" alt="" />
+            <div className="search-dropdown-name">{item.username}</div>
+          </NavLink>
+        ))}
+        {term && matches.length === 0 && <div>No users with that username found!</div>}
+      </div>
+    </div>
   );
 };
 

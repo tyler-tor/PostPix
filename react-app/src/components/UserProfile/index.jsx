@@ -11,7 +11,7 @@ const UserProfile = () => {
   if (!/^\d+$/.test(userId)) return <NotFound />;
   return (
     <div className="user-profile-papa-div">
-      <UserInfoBox />
+      <UserInfoBox userId={Number(userId)} />
     </div>
   );
 };
