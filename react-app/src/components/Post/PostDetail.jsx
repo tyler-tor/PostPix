@@ -72,7 +72,7 @@ const PostDetail = ({ postId, onClose }) => {
             <p className="pd-caption">
               <strong>{author.username}</strong> {post.caption}
             </p>
-            <h3 className="visually-hidden">Comments</h3>
+            <h2 className="visually-hidden">Comments</h2>
             {status === "loading" && ids.length === 0 && <p className="pd-note" role="status">Loading comments...</p>}
             {status === "error" && <p className="pd-note" role="alert">Could not load comments. Close the post and open it again to retry.</p>}
             {status === "ready" && ids.length === 0 && <p className="pd-note">No comments yet. Be the first.</p>}

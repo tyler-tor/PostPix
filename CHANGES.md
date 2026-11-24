@@ -1368,3 +1368,30 @@ the P32 section.
 - **Things to watch:** no real browser was available, so spacing, sticky behavior and
   breakpoints were written from the design and checked only as markup. Please look at it
   at 375, 768 and 1200 px.
+
+## P30 — Accessibility pass (WCAG 2.2 AA)
+- **Problem:** Before Batch 3 a scripted audit of the running app found 81 DOM issues
+  (images without alt text, buttons and links with no name, unlabelled inputs, no `main`/`nav`/`h1`,
+  modals that were not dialogs) plus 13 elements with click handlers that a keyboard
+  cannot reach: 94 in total.
+- **What changed:** most of it came with the rebuilds in P27-P29 (native dialogs with
+  titles, labelled inputs, `button`/`a` for every click target, alt text rules, `main`,
+  one labelled `nav`, one `h1` per page, tiles as buttons, `aria-pressed` on like/follow,
+  visible focus ring from the tokens, 44 px targets, reduced-motion CSS). This item adds:
+  - a "Skip to content" link and `<main id="main">` in `App.jsx`;
+  - on every in-app navigation the tab title changes ("Explore - Postpix") and focus moves
+    to the page content, because a single-page app otherwise leaves keyboard and screen
+    reader users where they were;
+  - the post dialog's "Comments" heading is an `h2`, so headings never skip a level;
+  - `react-app/scripts/check_contrast.py` (the contrast check P32 refers to): 0 failures
+    in light and dark.
+- **Files:** `react-app/src/App.jsx`, `Post/PostDetail.jsx`, `react-app/scripts/check_contrast.py`.
+- **How to verify:** `python3 scripts/check_contrast.py` from `react-app/` ends with
+  `failures: 0`. Tab from the top of any page: the first stop is the skip link; Enter
+  jumps to the content. Audit result after the work: **0 DOM issues and 0 non-interactive
+  clickable elements (was 81 + 13 = 94)**, over login, sign-up, home, Explore, post
+  dialog, profile, not-found and new-post dialog. jsdom check `p30.mjs` (7 checks).
+- **Things to watch:** the audit is my own script on jsdom, not axe or a screen reader.
+  Focus trapping and Escape rely on the browser's native `<dialog>`; color contrast is
+  computed from the tokens only (not from rendered pixels, e.g. text on photos in the
+  tile counts, which sit on a dark gradient).
