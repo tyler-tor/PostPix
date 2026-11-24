@@ -26,6 +26,7 @@ PAIRS = [  # (fg, bg, need, what)
  ('focus','bg',3.0,'focus ring vs page'), ('focus','surface',3.0,'focus ring vs card'),
  ('like','surface',3.0,'heart icon on card (UI 3:1)'), ('like','photo-bg',3.0,'heart on dark photo bg'),
  ('accent','surface',3.0,'accent as UI colour'),
+ ('ink','accent-soft',4.5,'demo notice text'), ('accent-strong','accent-soft',3.0,'demo notice icon (UI 3:1)'),
 ]
 bad = 0
 for mode, pal in (('light', light), ('dark', dark)):

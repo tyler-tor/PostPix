@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import { useDispatch, useSelector } from "react-redux";
 import NavBar from "./components/NavBar";
 import Toaster from "./components/ui/Toaster";
+import DemoNotice from "./components/ui/DemoNotice";
 import ProtectedRoute from "./components/reUsedComponents/ProtectedRoute";
 import { authenticate } from "./store/session";
 
@@ -55,6 +56,7 @@ function App() {
       <a className="skip-link" href="#main">Skip to content</a>
       <RouteEffects loggedIn={!!user} />
       {user && <NavBar />}
+      {user?.isDemo && <DemoNotice />}
       <main id="main" tabIndex={-1}>
       <Suspense fallback={null}>
         <Routes>

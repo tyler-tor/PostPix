@@ -62,3 +62,25 @@
 @keyframes toast-in { from { opacity: 0; transform: translateY(0.5rem); } }
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
 @media (min-width: 40rem) { .toaster { bottom: var(--space-5); } }
+
+/* ---- Demo account notice ---- */
+.demo-notice {
+  background: var(--accent-soft);
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+}
+.demo-notice-inner {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-1) var(--gutter);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+.demo-notice-inner p { flex: 1; padding: var(--space-2) 0; }
+.demo-notice-icon { flex: none; width: 1.25rem; height: 1.25rem; color: var(--accent-strong); }
+.demo-notice-close { flex: none; color: var(--ink); }
+.demo-notice-close:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--ink); }
+.demo-notice-close svg { width: 1.25rem; height: 1.25rem; }

@@ -1816,3 +1816,37 @@ differ):
   - The demo password is only set when the account is recreated (there is no "change password"
     feature, so it cannot drift).
   - The reset runs the seed in memory each time (about 1 s, mostly hashing 15 seed passwords).
+
+## Q2 — Demo account notice (add-on)
+- **Problem:** Visitors using Demo Login had no way to know that the demo data is reset every
+  night (P41), so a post they made "disappears" the next day without explanation.
+- **What changed:**
+  - The logged-in user's own payload (`/api/auth/`, login, signup: `User.to_self()`) has a new
+    field **`isDemo`** (true only for `demo@aa.io`). Public user payloads do not get it.
+  - New **`components/ui/DemoNotice.jsx`**, shown right under the top bar when
+    `session.user.isDemo` is true: "You're using the demo account. Demo data resets nightly, so
+    changes you make here will be cleared."
+  - **Accessibility:** the message is a `role="status"` live region inside a labelled
+    `<aside aria-label="Demo account notice">` (so it is in a landmark); the info and close icons
+    are `aria-hidden`; the close button is a real `<button>` named "Dismiss demo account notice"
+    with the usual 44 px target; after dismissing, focus moves to the page content instead of
+    getting lost.
+  - **Dismissal is remembered for the session** (`sessionStorage`, key
+    `postpix.demoNoticeDismissed`): it stays hidden across pages and reloads in that tab and comes
+    back in a new browser session. If storage is blocked it simply shows again next load.
+  - **Design tokens only:** `--accent-soft` background, `--ink` text (14.1:1 light, 10.8:1 dark),
+    `--accent-strong` icon, `--content-max` width, `--gutter` padding, `--text-sm`; works in dark
+    mode automatically. Both colour pairs were added to `scripts/check_contrast.py` (all pass).
+- **Files:** new `react-app/src/components/ui/DemoNotice.jsx`, `react-app/src/components/ui/ui.css`,
+  `react-app/src/App.jsx`, `react-app/scripts/check_contrast.py`, `app/models/user.py`, new
+  `tests/test_demo_flag.py`.
+- **How to verify:** log in with Demo Login: the teal-tinted bar appears under the top bar; click
+  the X, reload: it stays hidden; open a new browser window (new session): it is back. Log in as
+  `marnie@aa.io`: no bar. `python -m pytest tests/test_demo_flag.py` (3 tests). Checked here in
+  jsdom (10 checks on the component: role, exact text, landmark, button name, hidden icons,
+  dismissal, sessionStorage, focus, stays hidden, comes back in a new session; plus the whole
+  `<App/>` with a fake backend: shown right after the `<header>` for the demo user, not shown for
+  another user), `npm run build`, and the Vite dev server serving `App.jsx`, `DemoNotice.jsx` and
+  `ui.css` without errors.
+- **Things to watch:** jsdom does not draw anything, so the look (spacing, wrapping on a 375 px
+  phone) was written from the design tokens and not seen; please glance at it on your phone.

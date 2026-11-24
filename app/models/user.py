@@ -128,7 +128,9 @@ class User(TimestampMixin, db.Model, UserMixin):
     def to_self(self):
         """Everything in to_public() plus private fields. Only for the user
         themselves (login, signup, GET /api/auth/)."""
-        return {**self.to_public(viewer_id=self.id), 'email': self.email}
+        # isDemo: the frontend shows the "demo data resets nightly" notice (Q2).
+        return {**self.to_public(viewer_id=self.id), 'email': self.email,
+                'isDemo': self.is_demo}
 
     # Old name kept so existing code keeps working; it is the PUBLIC view.
     to_dict = to_public
