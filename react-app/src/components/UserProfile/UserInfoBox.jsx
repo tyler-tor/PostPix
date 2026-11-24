@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import PostGrid from "../reUsedComponents/PostGrid";
 import UserListModal from "../reUsedComponents/UserListModal";
-import { loadProfile } from "../../store/profile";
+import { loadProfile, loadMoreProfilePosts } from "../../store/profile";
+import LoadMore from "../reUsedComponents/LoadMore";
 import { setFollow } from "../../store/users";
 import NotFound from "../NotFound";
 import "./UserProfile.css";
@@ -75,6 +76,12 @@ const UserInfoBox = ({ userId }) => {
         </div>
       </div>
       <PostGrid postIds={profile.postIds} />
+      <LoadMore
+        hasMore={!!profile.nextCursor}
+        loading={profile.loadingMore}
+        onLoadMore={() => dispatch(loadMoreProfilePosts())}
+        label="Load more posts"
+      />
     </>
   );
 };

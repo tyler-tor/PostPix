@@ -6,20 +6,37 @@ import { patchPost } from "./posts";
 // status: idle | loading | ready | error
 const commentsSlice = createSlice({
   name: "comments",
-  initialState: { postId: null, byId: {}, ids: [], status: "idle" },
+  initialState: { postId: null, byId: {}, ids: [], status: "idle", nextCursor: null, loadingMore: false },
   reducers: {
     commentsLoading(state, action) {
       if (state.postId !== action.payload) {
         state.byId = {};
         state.ids = [];
+        state.nextCursor = null;
       }
+      state.loadingMore = false;
       state.postId = action.payload;
       state.status = "loading";
     },
     commentsLoaded(state, action) {
       state.status = "ready";
-      state.byId = Object.fromEntries(action.payload.map((c) => [c.id, c]));
-      state.ids = action.payload.map((c) => c.id);
+      state.byId = Object.fromEntries(action.payload.items.map((c) => [c.id, c]));
+      state.ids = action.payload.items.map((c) => c.id);
+      state.nextCursor = action.payload.nextCursor;
+    },
+    moreCommentsLoading(state) {
+      state.loadingMore = true;
+    },
+    moreCommentsLoaded(state, action) {
+      for (const c of action.payload.items) {
+        if (!state.byId[c.id]) state.ids.push(c.id);
+        state.byId[c.id] = c;
+      }
+      state.nextCursor = action.payload.nextCursor;
+      state.loadingMore = false;
+    },
+    moreCommentsFailed(state) {
+      state.loadingMore = false;
     },
     commentsFailed(state) {
       state.status = "error";
@@ -38,14 +55,26 @@ const commentsSlice = createSlice({
   },
 });
 
-const { commentsLoading, commentsLoaded, commentsFailed, commentAdded, commentChanged, commentRemoved } =
-  commentsSlice.actions;
+const {
+  commentsLoading, commentsLoaded, commentsFailed, commentAdded, commentChanged, commentRemoved,
+  moreCommentsLoading, moreCommentsLoaded, moreCommentsFailed,
+} = commentsSlice.actions;
 
 export const loadComments = (postId) => async (dispatch) => {
   dispatch(commentsLoading(postId));
   const res = await api(`/api/posts/${postId}/comments`);
-  if (res.ok) dispatch(commentsLoaded(res.data.Comments));
+  if (res.ok) dispatch(commentsLoaded({ items: res.data.Comments, nextCursor: res.data.nextCursor }));
   else dispatch(commentsFailed());
+  return res;
+};
+
+export const loadMoreComments = () => async (dispatch, getState) => {
+  const { postId, nextCursor, loadingMore } = getState().comments;
+  if (!nextCursor || loadingMore) return;
+  dispatch(moreCommentsLoading());
+  const res = await api(`/api/posts/${postId}/comments?after=${encodeURIComponent(nextCursor)}`);
+  if (res.ok) dispatch(moreCommentsLoaded({ items: res.data.Comments, nextCursor: res.data.nextCursor }));
+  else dispatch(moreCommentsFailed());
   return res;
 };
 

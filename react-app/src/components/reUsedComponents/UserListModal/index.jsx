@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import { NavLink } from "react-router";
 import { Modal } from "../../../context/Modal";
-import useFetch from "../../../hooks/useFetch";
+import usePagedList from "../../../hooks/usePagedList";
+import LoadMore from "../LoadMore";
 import "./UserListModal.css";
 
 // The list inside the modal: loaded when the modal opens, kept only while open.
 const UserList = ({ url, dataKey, onClose }) => {
-  const { status, data, errors } = useFetch(url);
-  const users = data?.[dataKey] ?? [];
+  const { items: users, status, errors, hasMore, loadingMore, loadMore } = usePagedList(url, dataKey);
 
   return (
     <div className="user-liked-list">
@@ -24,6 +24,7 @@ const UserList = ({ url, dataKey, onClose }) => {
           </li>
         ))}
       </ul>
+      <LoadMore hasMore={hasMore} loading={loadingMore} onLoadMore={loadMore} />
     </div>
   );
 };

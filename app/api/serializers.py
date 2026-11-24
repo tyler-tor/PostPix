@@ -38,3 +38,19 @@ def serialize_posts(posts, viewer_id):
 
 def serialize_post(post, viewer_id):
     return serialize_posts([post], viewer_id)[0]
+
+
+def page_of_posts(statement, viewer_id, limit, before):
+    """Run a posts SELECT (already filtered and ordered newest first) as one
+    cursor page. Returns {'Posts': [...], 'nextCursor': str | None}."""
+    from sqlalchemy.orm import selectinload
+    from app.api.pagination import older_than, encode_time_cursor
+    from app.models import Post
+    if before:
+        statement = statement.where(older_than(Post.created_at, Post.id, before))
+    rows = db.session.scalars(
+        statement.options(selectinload(Post.users)).limit(limit + 1)).all()
+    more = len(rows) > limit
+    rows = rows[:limit]
+    next_cursor = encode_time_cursor(rows[-1].created_at, rows[-1].id) if more else None
+    return {'Posts': serialize_posts(rows, viewer_id), 'nextCursor': next_cursor}

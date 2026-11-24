@@ -26,10 +26,7 @@ def authenticate():
     Authenticates a user.
     """
     if current_user.is_authenticated:
-        curr_user = current_user.to_self()
-        posts = db.session.scalars(select(Post).where(Post.user_id == curr_user['id'])).all()
-        curr_user['Posts'] = [post.to_dict() for post in posts]
-        return curr_user
+        return current_user.to_self()
     return {'errors': ['Unauthorized']}
 
 

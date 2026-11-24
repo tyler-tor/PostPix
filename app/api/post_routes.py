@@ -7,7 +7,8 @@ from app.forms.create_comment import CreateComment
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
-from app.api.serializers import serialize_post, serialize_posts
+from app.api.serializers import serialize_post, serialize_posts, page_of_posts
+from app.api.pagination import get_limit, decode_time_cursor, encode_time_cursor, newer_than, bad_cursor
 
 
 
@@ -23,16 +24,16 @@ def validation_errors_to_error_messages(validation_errors):
             errorMessages.append(f'{field} : {error}')
     return errorMessages
 
-#get all posts
+#get all posts (explore), newest first, one cursor page at a time
 @post_routes.route('/')
 @login_required
 def posts():
-    posts = db.session.scalars(
-        select(Post)
-        .options(selectinload(Post.users))
-        .order_by(Post.created_at.desc(), Post.id.desc())
-    ).all()
-    return {'Posts': serialize_posts(posts, current_user.id)}
+    try:
+        before = decode_time_cursor(request.args.get('before'))
+    except ValueError:
+        return bad_cursor()
+    statement = select(Post).order_by(Post.created_at.desc(), Post.id.desc())
+    return page_of_posts(statement, current_user.id, get_limit(12, 50), before)
 
 @post_routes.route('/<int(max=2147483647):id>', methods=['GET'])
 @login_required
@@ -99,11 +100,18 @@ def get_user_liked(id):
         get all users that liked a post
     '''
     db.get_or_404(Post, id, description='Post not found')
-    users = db.session.scalars(
-        select(User).join(PostLike, PostLike.user_id == User.id)
-        .where(PostLike.post_id == id).order_by(PostLike.id)).all()
+    after = request.args.get('after', type=int)
+    limit = get_limit(30, 100)
+    statement = (select(User, PostLike.id).join(PostLike, PostLike.user_id == User.id)
+                 .where(PostLike.post_id == id).order_by(PostLike.id))
+    if after:
+        statement = statement.where(PostLike.id > after)
+    rows = db.session.execute(statement.limit(limit + 1)).all()
+    more = len(rows) > limit
+    rows = rows[:limit]
     return {'user': [{'id': u.id, 'username': u.username,
-                      'profilePicture': u.profile_picture} for u in users]}
+                      'profilePicture': u.profile_picture} for u, _ in rows],
+            'nextCursor': str(rows[-1][1]) if more else None}
 
 @post_routes.route('/<int(max=2147483647):id>/likes', methods=['POST'])
 @login_required
@@ -156,24 +164,28 @@ def unlike_post(id):
 @post_routes.route('/<int(max=2147483647):id>/comments')
 @login_required
 def comments_on_post(id):
-    post = db.session.get(Post, id)
-    if post:
-        comments = db.session.scalars(
-            select(Comment).where(Comment.post_id == post.id)
-            .options(db.joinedload(Comment.users))
-        ).all()
-        # print(comments)
-        comments_dict = {}
-        comments_dict["Comments"] = [{**comment.to_dict(), 'users': {
-            'username': comment.users.username, 'id': comment.users.id, 'profilePicture' : comment.users.profile_picture
-            }} for comment in comments]
-        for comment in comments_dict['Comments']:
-            comment['myComment'] = False
-            if comment['userId'] == current_user.id:
-                comment['myComment'] = True
-
-        return comments_dict
-    return {'errors': ['Post not found']}, 404
+    """Comments of a post, oldest first, one cursor page at a time."""
+    db.get_or_404(Post, id, description='Post not found')
+    try:
+        after = decode_time_cursor(request.args.get('after'))
+    except ValueError:
+        return bad_cursor()
+    limit = get_limit(20, 100)
+    statement = (select(Comment).where(Comment.post_id == id)
+                 .options(db.joinedload(Comment.users))
+                 .order_by(Comment.created_at, Comment.id))
+    if after:
+        statement = statement.where(newer_than(Comment.created_at, Comment.id, after))
+    rows = db.session.scalars(statement.limit(limit + 1)).all()
+    more = len(rows) > limit
+    rows = rows[:limit]
+    return {
+        'Comments': [{**c.to_dict(),
+                      'users': {'username': c.users.username, 'id': c.users.id,
+                                'profilePicture': c.users.profile_picture},
+                      'myComment': c.user_id == current_user.id} for c in rows],
+        'nextCursor': encode_time_cursor(rows[-1].created_at, rows[-1].id) if more else None,
+    }
 
 
 @post_routes.route('/<int(max=2147483647):id>/comments', methods=['POST'])

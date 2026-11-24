@@ -3,8 +3,8 @@ from flask_login import login_required, current_user, logout_user
 from flask import request
 from sqlalchemy import select, delete, insert
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload
-from app.api.serializers import serialize_posts
+from app.api.serializers import page_of_posts
+from app.api.pagination import decode_time_cursor, bad_cursor, get_limit
 from app.models import User, db, Post, PostLike
 from app.models.user import follows, user_summary
 
@@ -51,13 +51,22 @@ def user(id):
         User.stats_select(current_user.id).where(User.id == id)).first()
     if row is None:
         return {'errors': ['User not found']}, 404
-    user = User.row_to_dict(row)
-    # Posts of this user for the profile grid (paginated in P22).
-    posts = db.session.scalars(
-        select(Post).where(Post.user_id == id).options(selectinload(Post.users))
-        .order_by(Post.created_at.desc(), Post.id.desc())).all()
-    user['Posts'] = serialize_posts(posts, current_user.id)
-    return user
+    return User.row_to_dict(row)
+
+
+@user_routes.route('/<int(max=2147483647):id>/posts')
+@login_required
+def user_posts(id):
+    """One user's posts for the profile grid, newest first, one cursor page at a
+    time (?limit=12&before=<cursor>)."""
+    db.get_or_404(User, id, description='User not found')
+    try:
+        before = decode_time_cursor(request.args.get('before'))
+    except ValueError:
+        return bad_cursor()
+    statement = (select(Post).where(Post.user_id == id)
+                 .order_by(Post.created_at.desc(), Post.id.desc()))
+    return page_of_posts(statement, current_user.id, get_limit(12, 50), before)
 
 
 @user_routes.route('/<int(max=2147483647):id>', methods=['DELETE'])
@@ -72,26 +81,34 @@ def delete_user(id):
     db.session.commit()
     return {'message': 'Success'}
 
+def _people_page(id, join_on, filter_on, key):
+    """Followers / following of user <id>, ordered by user id, one cursor page
+    at a time (?limit=30&after=<last user id>)."""
+    db.get_or_404(User, id, description='User not found')
+    after = request.args.get('after', type=int)
+    limit = _limit(30)
+    statement = (select(User).join(follows, join_on).where(filter_on == id).order_by(User.id))
+    if after:
+        statement = statement.where(User.id > after)
+    rows = db.session.scalars(statement.limit(limit + 1)).all()
+    more = len(rows) > limit
+    rows = rows[:limit]
+    return {key: [user_summary(u) for u in rows],
+            'nextCursor': str(rows[-1].id) if more else None}
+
+
 @user_routes.route('/<int(max=2147483647):id>/followers', methods=['GET'])
 @login_required
 def get_followers(id):
     """People who follow user <id> (summary shape: id, username, picture...)."""
-    db.get_or_404(User, id, description='User not found')
-    users = db.session.scalars(
-        select(User).join(follows, follows.c.follower_id == User.id)
-        .where(follows.c.followed_id == id).order_by(User.id)).all()
-    return {'followers': [user_summary(u) for u in users]}
+    return _people_page(id, follows.c.follower_id == User.id, follows.c.followed_id, 'followers')
 
 
 @user_routes.route('/<int(max=2147483647):id>/following', methods=['GET'])
 @login_required
 def get_following(id):
     """People user <id> follows."""
-    db.get_or_404(User, id, description='User not found')
-    users = db.session.scalars(
-        select(User).join(follows, follows.c.followed_id == User.id)
-        .where(follows.c.follower_id == id).order_by(User.id)).all()
-    return {'following': [user_summary(u) for u in users]}
+    return _people_page(id, follows.c.followed_id == User.id, follows.c.follower_id, 'following')
 
 
 @user_routes.route('/<int(max=2147483647):id>/notfollowing', methods=['GET'])

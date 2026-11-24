@@ -85,6 +85,7 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 - **P17:** removed the unused FontAwesome packages instead of bumping them, and bumped redux/redux-thunk to 5/3 here (needed by react-redux 9) rather than waiting for P19.
 - **P19:** done as one commit (the plan suggested one per slice) and as the minimal safe version: each reducer became an RTK slice with the same state shape and thunks; duplicate slices were not merged and RTK Query was not added (see P19 "Things to watch").
 - **P16 regression, fixed in P19:** the P16 change `require("redux-logger").default` -> `import logger from "redux-logger"` broke the development build (`npm run dev`) for the P16-P18 commits; production builds were unaffected. History was not rewritten; P19 fixes it.
+- **P22:** cursor parameter names differ by list: posts use `before=<created_at>,<id>` as planned (newest first), comments use `after=<created_at>,<id>` (read oldest first) and people lists use `after=<user id>`. `/api/users/<id>` and `/api/auth/` also stopped embedding `Posts` (unbounded).
 
 ---
 
@@ -1073,3 +1074,46 @@ look and feel (P27, P32, P28, P29, P30, P31), then the walkthrough update.
   found"; `/1` still shows the real profile; 0 console errors. Earlier scripts still pass.
 - **Things to watch:** a profile that is still loading renders nothing until P31 adds a
   skeleton. The not-found page is plain until the P32 restyle.
+
+## P22 — Pagination and infinite scroll
+- **Problem:** Every list endpoint returned everything: explore sent every post ever made,
+  the home feed every followed post, a profile all its posts (inside the user payload),
+  and comments, followers, following and likers were unbounded. Cost grows with the
+  data, and the frontend rendered thousands of tiles at once.
+- **What changed:**
+  - **Cursor pagination** on the list endpoints, with a shared `app/api/pagination.py`.
+    Every response gets `"nextCursor"` (send it back to get the next page, `null` = no more).
+    - Posts, newest first: `GET /api/posts/`, `GET /api/me/following/posts` and the new
+      `GET /api/users/<id>/posts`: `?limit=12&before=<cursor>` (limit 1-50, default 12).
+      The cursor is `<created_at>,<id>`, so posts created in the same second cannot be
+      skipped or repeated.
+    - Comments, oldest first: `?limit=20&after=<cursor>` (limit up to 100).
+    - Followers, following, people who liked a post: `?limit=30&after=<last id>`.
+  - Each page runs a fixed number of queries (5 for 50 posts including login lookup).
+  - `GET /api/users/<id>` no longer embeds the user's posts (use `/posts`), and
+    `GET /api/auth/` no longer embeds `Posts` either: both were unbounded and nothing used
+    the login copy.
+  - **Frontend:** the `feeds`, `profile` and `comments` slices keep `nextCursor` and a
+    "loading more" flag; new thunks `loadMoreFeed`, `loadMoreProfilePosts`,
+    `loadMoreComments`. A `LoadMore` component loads the next page by itself when it
+    scrolls within 400 px of the viewport (`IntersectionObserver`, `hooks/useInfiniteScroll.js`)
+    and is also a real button ("Load more posts"), so keyboard users and browsers without
+    the API can use it. The followers / following / likers modal list uses
+    `hooks/usePagedList.js` with the same button.
+- **Files:** `app/api/pagination.py` (new), `app/api/serializers.py`, `app/api/{post,me,user,auth}_routes.py`,
+  `react-app/src/store/{feeds,profile,comments}.js`, `react-app/src/hooks/{useInfiniteScroll,usePagedList}.js`,
+  `LoadMore.jsx`, `ActualFeed`, `ExplorePage`, `UserInfoBox`, `CommentContainer`, `UserListModal`.
+- **How to verify:** test-client script (24 checks): walking every page returns every post
+  exactly once, in newest-first order, for explore, home feed, profile, comments (including
+  25 extra posts created within the same second), followers, following and likers; default
+  and clamped limits; bad cursor gives a JSON 400; missing user gives 404. jsdom (development
+  bundle): with a mocked `IntersectionObserver` Explore keeps loading until all posts are
+  shown with no duplicates; without it, the first page is 12 tiles and the button adds 12
+  more; home feed 12 -> 21 posts; profile shows its 5 posts; the followers modal lists
+  7 people; the post modal lists comments; 0 console errors.
+- **Things to watch:** this changes the API (no embedded `Posts`; list endpoints return only
+  the first page unless you follow `nextCursor`). Cursors are opaque: do not build them by
+  hand. On SQLite timestamps are compared as text (`CURRENT_TIMESTAMP` has no fraction), so
+  the cursor helper formats the comparison value the same way; Postgres compares real
+  timestamps. Plan said `?before=` for every list; comments and people lists use `after`
+  because they read oldest-first / by id (see "Deviations from plan").

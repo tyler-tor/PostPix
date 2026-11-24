@@ -4,7 +4,8 @@ import { FaUserCircle } from "react-icons/fa";
 import { NavLink } from "react-router";
 import { useSelector, useDispatch } from "react-redux";
 import PostSettingsModal from "./PostSettingsModal";
-import { loadHomeFeed } from "../../store/feeds";
+import { loadHomeFeed, loadMoreFeed } from "../../store/feeds";
+import LoadMore from "../reUsedComponents/LoadMore";
 import { toggleLike } from "../../store/posts";
 import formatDate from "../../utils/formatDate";
 
@@ -66,7 +67,7 @@ const FeedPost = ({ postId }) => {
 
 const ActualFeed = () => {
   const dispatch = useDispatch();
-  const ids = useSelector((state) => state.feeds.home.ids);
+  const { ids, nextCursor, loadingMore } = useSelector((state) => state.feeds.home);
 
   useEffect(() => {
     dispatch(loadHomeFeed());
@@ -77,6 +78,12 @@ const ActualFeed = () => {
       {ids.map((id) => (
         <FeedPost key={id} postId={id} />
       ))}
+      <LoadMore
+        hasMore={!!nextCursor}
+        loading={loadingMore}
+        onLoadMore={() => dispatch(loadMoreFeed("home"))}
+        label="Load more posts"
+      />
     </div>
   );
 };

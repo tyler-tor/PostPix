@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { loadComments } from "../../../store/comments";
+import { loadComments, loadMoreComments } from "../../../store/comments";
+import LoadMore from "../LoadMore";
 import CommentSettingsModal from "../EditCommentModal";
 
 // Caption plus comments of one post. Comments are fetched when this mounts,
@@ -8,7 +9,7 @@ import CommentSettingsModal from "../EditCommentModal";
 const CommentContainer = ({ postId }) => {
   const dispatch = useDispatch();
   const post = useSelector((state) => state.posts.byId[postId]);
-  const { status, ids, byId } = useSelector((state) => state.comments);
+  const { status, ids, byId, nextCursor, loadingMore } = useSelector((state) => state.comments);
 
   useEffect(() => {
     dispatch(loadComments(postId));
@@ -38,6 +39,14 @@ const CommentContainer = ({ postId }) => {
           </li>
         );
       })}
+      <li>
+        <LoadMore
+          hasMore={!!nextCursor}
+          loading={loadingMore}
+          onLoadMore={() => dispatch(loadMoreComments())}
+          label="Load more comments"
+        />
+      </li>
     </ul>
   );
 };
