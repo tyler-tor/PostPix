@@ -3,7 +3,7 @@
 #
 #   RUN_MIGRATIONS=1  run `flask db upgrade` before starting (default: off;
 #                     production runs migrations as a separate deploy step,
-#                     after a database snapshot - see CHANGES.md, P0 rule 4)
+#                     after a database snapshot)
 #   SEED_ON_START=1   run `flask seed all` before starting (default: off;
 #                     safe: it only seeds an EMPTY database)
 #

@@ -51,7 +51,7 @@ def _engine_options(url):
         connections per gunicorn worker process (default 5 + 2; with 2
         workers that is at most 14 for this app on the shared instance).
       * DATABASE_SSLMODE: passed to psycopg as sslmode (use "require" for RDS;
-        "verify-full" also needs the RDS CA bundle, see CHANGES.md P34).
+        "verify-full" also needs the RDS CA bundle).
     SQLite (local development, tests) needs none of this.
     """
     if not url or not url.startswith('postgresql'):

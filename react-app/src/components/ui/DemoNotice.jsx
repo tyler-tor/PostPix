@@ -4,7 +4,7 @@ import "./ui.css";
 
 // Shown while logged in as the shared demo account (session.user.isDemo):
 // visitors should know their changes do not last. `flask demo reset` restores
-// the demo data every night (see CHANGES.md, P41).
+// the demo data every night.
 // Dismissing it is remembered for this browser tab session (sessionStorage),
 // so it comes back in a new session but does not nag on every page.
 export const DEMO_NOTICE_KEY = "postpix.demoNoticeDismissed";

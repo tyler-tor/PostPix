@@ -49,3 +49,9 @@ yarn-error.log*
 Thumbs.db
 .idea/
 .vscode/
+
+# Private learning notes live in the separate portfolio-notes repo
+CHANGES.md
+MODERNIZATION_PLAN.md
+docs/WALKTHROUGH.md
+docs/MAPBOX.md

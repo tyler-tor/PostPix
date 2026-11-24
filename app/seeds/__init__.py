@@ -1,6 +1,6 @@
 """`flask seed ...` commands.
 
-Rules (see CHANGES.md, P0):
+Rules:
 - `flask seed all` is SAFE to run on every deploy: it only seeds an EMPTY
   database (no users) and otherwise does nothing.
 - `flask seed all --reset` and `flask seed undo` DELETE all data. They are for

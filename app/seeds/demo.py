@@ -1,8 +1,7 @@
 """`flask demo reset`: put the shared demo account back to the seed data (P41).
 
 Every visitor can click "Demo Login", so the demo account collects whatever
-people do with it. A nightly job (cron or a systemd timer on the EC2, see
-CHANGES.md P41) runs `flask demo reset`, which restores ONLY the demo user's
+people do with it. A nightly job (cron or a systemd timer on the EC2) runs `flask demo reset`, which restores ONLY the demo user's
 part of the database:
 
   * the demo user row itself (recreated if it is missing; name and picture restored)
