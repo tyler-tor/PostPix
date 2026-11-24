@@ -5,9 +5,12 @@ from sqlalchemy import select, func, exists, literal
 
 # Who follows whom: one row per (follower, followed) pair, no duplicates.
 follows = db.Table('follows',
-    db.Column('follower_id', db.Integer, db.ForeignKey('users.id'), nullable=False),
-    db.Column('followed_id', db.Integer, db.ForeignKey('users.id'), nullable=False),
-    db.UniqueConstraint('follower_id', 'followed_id', name='uq_follows_follower_followed')
+    db.Column('follower_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False),
+    db.Column('followed_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False),
+    db.UniqueConstraint('follower_id', 'followed_id', name='uq_follows_follower_followed'),
+    # "Who follows user X": the unique constraint above only helps lookups that
+    # start with follower_id.
+    db.Index('ix_follows_followed_id', 'followed_id'),
 )
 
 class User(TimestampMixin, db.Model, UserMixin):

@@ -8,6 +8,9 @@ class PostLike(TimestampMixin, db.Model):
     # requests race each other.
     __table_args__ = (
         db.UniqueConstraint('user_id', 'post_id', name='uq_post_likes_user_post'),
+        # "Who liked post X" and like counts per post (the unique constraint
+        # above starts with user_id, so it cannot serve these).
+        db.Index('ix_post_likes_post_id', 'post_id'),
     )
 
     id = db.Column(db.Integer, primary_key=True)

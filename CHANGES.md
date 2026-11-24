@@ -908,3 +908,29 @@ look and feel (P27, P32, P28, P29, P30, P31), then the walkthrough update.
   `user.followers` / `user.following` / `user.likes` would break (nothing in the app does
   now). `to_dict()` still costs one query per call; for lists always use `stats_select()`.
   The follower/following lists are not paginated until P22.
+
+## P21 — Add database indexes
+- **Problem:** Postgres does not index foreign keys automatically. Profile pages, the
+  explore page, comment lists, like lists and "who follows X" would scan whole tables as
+  the data grows. The `follows` foreign keys also had no `ON DELETE CASCADE`.
+- **What changed:** New migration `0002_indexes` (on top of `0001_baseline`, which is
+  untouched) creates five indexes, and the models declare the same ones:
+  `posts(user_id, created_at)` (profile grid), `posts(created_at, id)` (explore and home
+  feed ordering, used by P22's cursor paging), `comments(post_id)`, `post_likes(post_id)`,
+  `follows(followed_id)`. It also recreates the two `follows` foreign keys with
+  `ON DELETE CASCADE` (batch mode, so SQLite can do it too). The `follows` columns were
+  already `NOT NULL` from P15. The migration downgrades cleanly (drops the indexes and
+  restores the plain foreign keys).
+- **Files:** `migrations/versions/0002_indexes_and_follow_cascade.py`,
+  `app/models/{posts,comments,postLike,user}.py`.
+- **How to verify:** on a fresh SQLite file `flask db upgrade` -> `flask seed all` ->
+  `flask db check` ("No new upgrade operations detected") -> `flask db downgrade` ->
+  `flask db upgrade` -> `flask db downgrade base` all succeed. `EXPLAIN QUERY PLAN` shows
+  every query above using its index instead of a table scan. All earlier test scripts
+  still pass (the P15 script now expects revision `0002_indexes`).
+- **Things to watch:** the two `posts` indexes are plain ascending, not `DESC` as the plan
+  wrote them: both databases read an index backwards for `ORDER BY ... DESC`, and
+  expression indexes make `flask db check` report false changes. Run the migration once
+  on Postgres in P34 (generated SQL only was reviewed; no Postgres is available here).
+  On SQLite `ON DELETE CASCADE` only acts when `PRAGMA foreign_keys=ON`; the ORM still
+  removes follow rows itself when a user is deleted, so behaviour is the same.

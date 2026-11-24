@@ -4,6 +4,8 @@ from .db import db, TimestampMixin, iso
 class Comment(TimestampMixin, db.Model):
     __tablename__ = 'comments'
 
+    __table_args__ = (db.Index('ix_comments_post_id', 'post_id'),)
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
