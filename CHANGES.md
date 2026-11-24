@@ -87,6 +87,10 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 - **P16 regression, fixed in P19:** the P16 change `require("redux-logger").default` -> `import logger from "redux-logger"` broke the development build (`npm run dev`) for the P16-P18 commits; production builds were unaffected. History was not rewritten; P19 fixes it.
 - **P22:** cursor parameter names differ by list: posts use `before=<created_at>,<id>` as planned (newest first), comments use `after=<created_at>,<id>` (read oldest first) and people lists use `after=<user id>`. `/api/users/<id>` and `/api/auth/` also stopped embedding `Posts` (unbounded).
 - **P26:** only the Flask-side half was done (gunicorn config and cache headers). Postgres memory tuning, compose, and the CloudFront cache policy/compression depend on P33, P34 and P36, which are not part of this batch; the matching headers are already in place for them.
+- **Batch 3 order:** P25 (dead code) ran before Z1, and P29 (dialogs) before P28 (page layouts), because the layouts use the new dialogs and the store merge is simpler without the dead components.
+- **P21:** the posts indexes are plain ascending columns instead of `created_at DESC`, because Alembic's autogenerate check reports false differences for descending indexes on SQLite; the planner reads an ascending index backwards, so the speed is the same.
+- **P27/P32:** icons are Feather (`react-icons/fi`, MIT) instead of the previous mix of Ai/Fa/Hi icon sets, so `react-icons` is now used from one family; fonts are self-hosted Bricolage Grotesque and Figtree (OFL) via `@fontsource-variable`, which needs one `npm install`.
+- **P28/P30/P31:** there was no real browser, so every screen was checked as markup in jsdom (structure, roles, focus, request counts); spacing, breakpoints and animation were written from the design and not seen. The accessibility audit is my own script, not axe.
 
 ---
 
@@ -96,6 +100,9 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 2. **Branding (P11):** OK with the teal "postpix" wordmark and accent, or do you have preferred colours/logo for P32?
 3. **Repo name:** rename the GitHub repo from `Instagram-Group-Project` to something like `postpix` (GitHub redirects old URLs)? Avoids the trademark name in your portfolio URL.
 4. **Deep links (found during P11):** refreshing `/explore` on the Flask-served build returns 404 (pre-existing). Fix in P31/P33, or earlier as a small separate change? **Answered in Batch 2: fixed in P18.**
+5. **Look and feel (Batch 3):** please open the app at 375, 768 and 1200 px and tell me what to change. The palette (teal `#0F766E` on cool grey, Bricolage Grotesque headings) is easy to adjust in `src/styles/tokens.css`.
+6. **Share preview image:** `index.html` has Open Graph tags but no `og:image`. Do you want a 1200x630 card made for link previews (needs a hosted absolute URL)?
+7. **Credits:** the home page rail lists Derek Torrero, Theo Fandrich and Alan Deleon with GitHub/LinkedIn links, kept from the old version. Keep, edit or remove?
 
 ---
 

@@ -1,14 +1,16 @@
 # Postpix Code Walkthrough
 
 A guided tour of the Postpix codebase as it is **today on the `modernize` branch** (after
-Batch 1, items P2-P11, and Batch 2, items P0 and P12-P19: safe seeding, app factory,
-Python 3.12 / Flask 3 / SQLAlchemy 2, a clean migration baseline, Vite, React 19,
-React Router 7 and Redux Toolkit). It is written for someone who knows Python and React basics but has
+Batch 1, items P2-P11, Batch 2, items P0 and P12-P19, and Batch 3, items P20-P32 plus the
+Z1-Z4 add-ons: safe seeding, app factory, Python 3.12 / Flask 3 / SQLAlchemy 2, a clean
+migration baseline, Vite, React 19, React Router 7, Redux Toolkit, then database indexes,
+cursor pagination, server-side search, resized WebP images, a merged store, and a new
+design system with accessible dialogs). It is written for someone who knows Python and React basics but has
 not looked at this project in a while. Every file, function and endpoint named here exists in
 the code; if you find one that does not, the code changed after this was written.
 
 Postpix started in 2022 as a three-person team project (Tyler, Alan De Leon, Theo Fandrich)
-and is now maintained by Tyler. See `CHANGES.md` for what Batches 1 and 2 changed and
+and is now maintained by Tyler. See `CHANGES.md` for what Batches 1 to 3 changed and
 `MODERNIZATION_PLAN.md` for what is planned.
 
 ## Table of contents
@@ -22,7 +24,7 @@ and is now maintained by Tyler. See `CHANGES.md` for what Batches 1 and 2 change
 7. [Frontend tour](#7-frontend-tour)
 8. [Three end-to-end traces](#8-three-end-to-end-traces)
 9. [Where do I look when...](#9-where-do-i-look-when)
-10. [What changed in Batches 1 and 2 and what is coming](#10-what-changed-in-batches-1-and-2-and-what-is-coming)
+10. [What changed in Batches 1 to 3 and what is coming](#10-what-changed-in-batches-1-to-3-and-what-is-coming)
 11. [Interview prep](#11-interview-prep)
 12. [Glossary](#12-glossary)
 
@@ -87,27 +89,30 @@ Instagram-Group-Project/
 ├── .env.example              Template for your local .env (the only env template; copy it)
 ├── .envexample               Git-ignored leftover duplicate (P2 stopped tracking it); safe to delete
 ├── .python-version           "3.12" (read by pyenv / uv)
-├── CHANGES.md                What Batches 1 and 2 changed, item by item, and how to verify it
+├── CHANGES.md                What Batches 1 to 3 changed, item by item, and how to verify it
 ├── MODERNIZATION_PLAN.md     The 48-item plan (P1-P48)
 ├── Dockerfile                Old Heroku-style image, minimally updated (python:3.12-slim, gunicorn wsgi:app); replaced in P33
 ├── requirements.in           Direct backend dependencies (edit this one)
 ├── requirements.txt          Fully pinned list generated from requirements.in (uv pip compile)
 ├── requirements-dev.in/.txt  Dev tools: pytest, ruff, moto, pip-audit
 ├── wsgi.py                   `app = create_app()` for gunicorn (`gunicorn wsgi:app`)
+├── gunicorn.conf.py          Gunicorn settings (2 workers x 4 threads, preload, logs to stdout; env overrides)
 ├── README.md                 Original team README (install steps updated; rewrite planned in P46)
 ├── instance/                 Git-ignored; holds the local SQLite file dev.db
 ├── app/                      Flask backend
 │   ├── __init__.py           create_app(): config, extensions, blueprints, CSRF cookie, /api/health, React serving
 │   ├── config.py             Config / DevConfig / TestConfig / ProdConfig + get_config()
 │   ├── errors.py             JSON error handlers ({"errors": [...]}) for every /api error
-│   ├── s3_helpers.py         Image validation (Pillow) + upload to S3
+│   ├── s3_helpers.py         Image validation, resize to WebP (main + thumbnail), upload to S3 with long cache headers
 │   ├── api/                  Blueprints = groups of routes
 │   │   ├── auth_routes.py    /api/auth: restore session, login, logout, signup
-│   │   ├── user_routes.py    /api/users: users, profiles, follow/unfollow, liked posts
-│   │   ├── post_routes.py    /api/posts: post CRUD, likes, comments on a post
+│   │   ├── user_routes.py    /api/users: search, profiles, a user's posts, follow/unfollow, people lists
+│   │   ├── post_routes.py    /api/posts: explore feed, post CRUD, likes, comments on a post
 │   │   ├── comment_routes.py /api/comments: edit/delete a comment
-│   │   ├── me_routes.py      /api/me/following/posts: the home feed
-│   │   └── img_routes.py     /api/img/upload: upload one image to S3
+│   │   ├── me_routes.py      /api/me/following/posts: the home feed (you + people you follow)
+│   │   ├── img_routes.py     /api/img/upload: upload one image (post or avatar) to S3
+│   │   ├── pagination.py     Cursor helpers (limit, cursor encode/decode, "older than" filters)
+│   │   └── serializers.py    Post lists -> JSON in 3 queries (authors, likedByMe, commentCount)
 │   ├── forms/                Flask-WTF forms (input validation)
 │   │   ├── login_form.py, signup_form.py
 │   │   ├── create_post.py, update_post.py, create_comment.py, update_comment.py
@@ -126,32 +131,34 @@ Instagram-Group-Project/
 │       └── postLikes.py      17 likes + recount_post_likes()
 ├── migrations/               Alembic (Flask-Migrate)
 │   ├── env.py                Standard Flask-Migrate env (no schema hacks since P15)
-│   └── versions/0001_baseline_schema.py  The one baseline migration (see section 5.5)
+│   └── versions/             0001_baseline_schema, 0002_indexes_and_follow_cascade, 0003_user_search_index,
+│                             0004_post_image_variants (see section 5.5)
 └── react-app/                React frontend (Vite)
     ├── package.json          Deps + scripts: dev / start (vite), build (vite build), preview
     ├── vite.config.js        React plugin, dev server :3000, proxy /api -> :5000, build -> build/
-    ├── index.html            HTML shell (Vite entry), <title>Postpix</title>
-    ├── public/favicon.ico    Copied as-is into the build
+    ├── index.html            HTML shell: viewport, theme colour, description, Open Graph tags
+    ├── public/               favicon.svg/.ico, apple-touch-icon, icon-192/512, maskable icon, manifest.webmanifest
+    ├── scripts/check_contrast.py  Reads tokens.css and checks WCAG AA contrast (light + dark)
     └── src/
-        ├── index.jsx         Entry: createRoot + Redux Provider + ModalProvider + <App/>
-        ├── App.jsx           Restores session, then defines routes (React Router 7)
-        ├── index.css         Global styles + Postpix brand CSS variables (--pp-accent)
-        ├── utils/apiFetch.js fetch wrapper that adds the CSRF header
-        ├── utils/formatDate.js ISO timestamp -> "Nov 23, 2026"
-        ├── context/Modal.jsx ModalProvider + <Modal> (portal-based modal)
-        ├── store/            Redux Toolkit: index.js (configureStore) + 14 slices + helpers.js
-        └── components/       (files with JSX are .jsx; plain re-export index.js files stay .js)
-            ├── LoginPage/    Login card, Demo Login, sign-up modal, profile-picture picker
-            ├── NavBar/       Nav bar, search, create-post modal, image upload, profile menu
-            ├── HomeFeed/     Home page: following avatars, feed, suggestions sidebar
-            ├── ExplorePage/  Grid of all posts
-            ├── UserProfile/  Profile header (follow button, counts) + post grid
-            ├── NotFound/     "Page not found" (the * route and non-numeric profile ids)
-            ├── reUsedComponents/ PostGrid, SinglePostModal, comments, edit/delete modals,
-            │                 follower/following/liked-by lists, ProtectedRoute
-            ├── Brand/        Wordmark.jsx (the "postpix" text logo) + Brand.css
-            ├── User.jsx, UsersList.jsx  Early dev pages (UsersList is routed at /users)
-            └── Temp*/, CreatePost/, CreateComment/  Unused dev test components
+        ├── index.jsx         Entry: fonts, tokens.css, base.css, createRoot + Redux Provider + <App/>
+        ├── App.jsx           Session restore, lazy routes, <main>, skip link, per-page title + focus, Toaster
+        ├── styles/           tokens.css (design tokens, light + dark) and base.css (reset, buttons, inputs, focus)
+        ├── utils/            api.js ({ok,status,data,errors} helper over apiFetch), apiFetch.js (CSRF),
+        │                     formatDate.js, toast.js (notification store)
+        ├── hooks/            useInfiniteScroll.js, usePagedList.js
+        ├── context/          Modal.jsx + Modal.css (one <dialog>-based Modal)
+        ├── store/            Redux Toolkit: index.js + 6 slices (session, users, posts, feeds, profile, comments)
+        └── components/
+            ├── Brand/        LogoMark, Wordmark (teal "P" + "postpix"), Mosaic (login artwork)
+            ├── LoginPage/    Split-screen login, Demo Login, sign-up dialog, profile-picture picker
+            ├── NavBar/       Top bar, search, account menu; the same <nav> is the phone tab bar
+            ├── HomeFeed/     Following row, feed cards (FeedPost), right rail (suggestions, credits)
+            ├── ExplorePage/  Mosaic grid of every post (paginated)
+            ├── UserProfile/  Profile header (stats, follow button) + post grid
+            ├── Post/         PostTile, PostGrid, PostDetail (dialog), LikeButton, PostOptions, CommentOptions, NewPost
+            ├── ui/           Avatar, Time, StatusMessage (empty/error), Skeletons, Toaster
+            ├── reUsedComponents/ LoadMore, UserListModal (followers/following/likers), ProtectedRoute
+            └── NotFound/     "Page not found" / "Profile not found"
 ```
 
 ---
@@ -191,7 +198,8 @@ You need **Python 3.12** and **Node 22.12+** (Node 22 LTS), and two terminals: o
    ```bash
    flask db upgrade
    ```
-   If you have a database from before Batch 2, delete it first (`app/dev.db` / `instance/dev.db`):
+   This applies all four migrations (baseline, indexes, user search index, post image
+   variants). If you have a database from before Batch 2, delete it first (`app/dev.db` / `instance/dev.db`):
    the old migration history was replaced by one baseline (P15) and cannot be upgraded.
 6. **Load demo data:**
    ```bash
@@ -208,7 +216,7 @@ You need **Python 3.12** and **Node 22.12+** (Node 22 LTS), and two terminals: o
 8. **Start React** in a second terminal:
    ```bash
    cd react-app
-   npm install
+   npm install      # Batch 3 added two font packages, so run it again after pulling
    npm run dev      # http://localhost:3000   (npm start does the same)
    ```
    No `NODE_OPTIONS=--openssl-legacy-provider` any more (that was for Create React App).
@@ -220,8 +228,12 @@ You need **Python 3.12** and **Node 22.12+** (Node 22 LTS), and two terminals: o
     `LoginForm.jsx`). Every seeded user has password `password`, for example
     `marnie@aa.io`, `bobbie@aa.io`, `theo@aa.io`, `awd@aa.io` (see `app/seeds/users.py`).
 
+**Image uploads need Pillow's WebP support** (it is in the pinned wheels). New posts store a
+main image (max 1080x1350 WebP) and a 400 px thumbnail; old posts without a thumbnail fall
+back to the full image.
+
 **Production-style run:** `npm run build` inside `react-app/` (output in `react-app/build/`),
-then only Flask: `flask run`, or like production `gunicorn wsgi:app`. Flask serves the build
+then only Flask: `flask run`, or like production `gunicorn -c gunicorn.conf.py wsgi:app` (`WEB_CONCURRENCY`, `GUNICORN_THREADS`, `PORT` override the defaults). Flask serves the build
 itself, and since P18 refreshing a deep link like `/explore` works (see section 5.1).
 
 **Deploy rule (P0):** a deploy runs `flask db upgrade && flask seed all` (safe every time).
@@ -260,7 +272,10 @@ erDiagram
         int id PK
         int user_id FK
         int likes "counter, kept equal to post_likes rows"
-        string img_url "max 255"
+        string img_url "max 255, main 1080px WebP"
+        string thumb_url "400px WebP, nullable"
+        int img_width "nullable"
+        int img_height "nullable"
         string caption "max 150"
         datetime created_at
         datetime updated_at
@@ -295,6 +310,13 @@ erDiagram
   at `users.id`). It has a unique constraint `uq_follows_follower_followed` on
   `(follower_id, followed_id)` but no primary key.
 
+**Indexes (P21, P23).** Migration `0002` adds `ix_posts_user_id_created_at` (profile pages),
+`ix_posts_created_at_id` (Explore and the cursor), `ix_comments_post_id`,
+`ix_post_likes_post_id` and `ix_follows_followed_id`, and makes `follows` rows delete with their
+user (`ON DELETE CASCADE`). Migration `0003` adds `ix_users_username_lower` on `lower(username)`
+so search is a range scan. Migration `0004` adds the three image columns. All three have
+working `downgrade()` functions.
+
 **Timestamps.** Every model gets `created_at` / `updated_at` from `TimestampMixin`
 (`app/models/db.py`): `DateTime(timezone=True)`, `NOT NULL`, `DEFAULT now()` in the table
 (database clock) and `onupdate=func.now()`. The API returns them as ISO-8601 strings with a
@@ -316,9 +338,12 @@ UTC offset (`"2026-11-23T18:04:05+00:00"`) via `iso()`; the frontend formats the
     **`follows`** = users **I** follow. Both are plain Python lists (`lazy='select'`; they were
     `lazy='dynamic'` query objects before P14). The naming is confusing: read `user.follows` as
     "the people this user follows".
-  - `to_public()` - safe view: id, username, names, picture, followers, following, liked
-    post IDs, timestamps. **No email.** `to_dict` is an alias of `to_public`.
+  - `to_public()` - safe view: id, username, names, picture, timestamps plus **counts**
+    (`followerCount`, `followingCount`, `postCount`) and `isFollowedByMe`, all from one query
+    (`User.stats_select(viewer_id)` uses correlated `COUNT` subqueries). No follower lists, no
+    email. `to_dict` is an alias.
   - `to_self()` - `to_public()` plus `email`; only used for "this is me" responses.
+  - `user_summary(user)` - the small shape used in lists: id, username, names, picture.
   - Cascades: deleting a user deletes their posts, comments and likes.
 - `app/models/posts.py` - `Post`, with `users` (the author; note the plural name),
   `comments` and `post_likes` (both cascade-delete with the post). `to_dict()` returns
@@ -420,48 +445,59 @@ All `createdAt` / `updatedAt` values are ISO-8601 strings.
 
 **`GET /api/health`** (in `app/__init__.py`): `{"status": "ok"}`, no login.
 
+**Pagination (P22).** Every list endpoint returns at most `limit` items (default 12 posts, 20
+comments or people; max 50) and a `nextCursor` (null when finished). Send it back as `before=`
+(posts, newest first, value `<createdAt>,<id>`), `after=` (comments, oldest first, same format)
+or `after=<id>` (people lists, likers). A bad cursor is a 400. See section 5.6.
+
 **`app/api/auth_routes.py` (`/api/auth`)**
 
 | Method | Path | Login | Owner | Handler | Models | Response |
 |---|---|---|---|---|---|---|
-| GET | `/api/auth/` | no | - | `authenticate` | User, Post | `to_self()` + `Posts: [post]`; if logged out **200** with `{"errors": ["Unauthorized"]}` |
+| GET | `/api/auth/` | no | - | `authenticate` | User | `to_self()` (no posts any more); if logged out **200** with `{"errors": ["Unauthorized"]}` |
 | POST | `/api/auth/login` | no | - | `login` | User | `to_self()`; 400 `{"errors": [...]}` |
 | POST | `/api/auth/logout` | no | - | `logout` | - | `{"message": "User logged out"}` |
-| POST | `/api/auth/signup` | no | - | `sign_up` | User (+S3) | multipart in; `to_self()`; 400 on form errors; upload errors keep their status (400/502) |
+| POST | `/api/auth/signup` | no | - | `sign_up` | User (+S3) | multipart in (avatar is resized to 320 px); `to_self()`; 400 on form errors |
 | GET | `/api/auth/unauthorized` | no | - | `unauthorized` | - | 401 `{"errors": ["Unauthorized"]}` |
 
 **`app/api/user_routes.py` (`/api/users`)**
 
 | Method | Path | Login | Owner | Handler | Models | Response |
 |---|---|---|---|---|---|---|
-| GET | `/api/users/` | yes | - | `users` | User | `{"users": [to_public]}` |
-| GET | `/api/users/<id>` | yes | - | `user` | User, Post | `to_public()` + `Posts: [post]`; 404 |
+| GET | `/api/users/` | yes | - | `users` | User | `{"users": [summary]}`, capped (`limit` default 50, max 100) |
+| GET | `/api/users/search?q=&limit=` | yes | - | `search_users` | User | `{"users": [summary]}`: usernames starting with `q` (case-insensitive, range scan on `lower(username)`), max 10 |
+| GET | `/api/users/<id>` | yes | - | `user` | User | `to_public()` (counts + `isFollowedByMe`), **no posts**; 404 |
+| GET | `/api/users/<id>/posts` | yes | - | `user_posts` | Post | `{"Posts": [...], "nextCursor"}` newest first; 404 |
 | DELETE | `/api/users/<id>` | yes | self only | `delete_user` | User (cascades) | `{"message": "Success"}`; 403. No frontend button calls this |
-| GET | `/api/users/<id>/followers` | yes | - | `get_followers` | User, follows | `{"followers": [{userId, username, profilePicture}]}`; 404 |
-| GET | `/api/users/<id>/following` | yes | - | `get_following` | User, follows | `{"following": [...same shape]}`; 404 |
-| GET | `/api/users/<id>/notfollowing` | yes | - | `get_not_following` | User | `{"users": [to_public]}` = everyone user `<id>` does not follow (minus themself) |
-| POST | `/api/users/<id>/follow` | yes | - | `follow_user` | User, follows | `{"currentUser", "followingUser"}` (both `to_public`); 409 if already following; 404 |
-| DELETE | `/api/users/<id>/follow` | yes | - | `unfollow_user` | User, follows | same shape; 409 if not following; 404 |
-| GET | `/api/users/<id>/likes` | yes | - | `get_all_liked_posts` | User, PostLike, Post | `{"likedPosts": [post]}`; unused by the frontend |
-| GET | `/api/users/likes` | yes | - | `get_posts_liked` | User, PostLike, Post | current user's `{"likes": [{postId, likes}]}` |
+| GET | `/api/users/<id>/followers` | yes | - | `get_followers` | User, follows | `{"followers": [summary], "nextCursor"}` |
+| GET | `/api/users/<id>/following` | yes | - | `get_following` | User, follows | `{"following": [summary], "nextCursor"}` |
+| GET | `/api/users/<id>/notfollowing?limit=` | yes | - | `get_not_following` | User | `{"users": [to_public]}`: people `<id>` does not follow, one `NOT IN` query, default 10 |
+| POST | `/api/users/<id>/follow` | yes | - | `follow_user` | follows | `{"currentUser", "followingUser"}`; 409 if already following (single `INSERT`) |
+| DELETE | `/api/users/<id>/follow` | yes | - | `unfollow_user` | follows | same shape; 409 if not following (single `DELETE`) |
+| GET | `/api/users/<id>/likes` | yes | - | `get_all_liked_posts` | PostLike, Post | `{"likedPosts": [post]}`; unused by the frontend |
+| GET | `/api/users/likes` | yes | - | `get_posts_liked` | PostLike | current user's `{"likes": [{postId, likes}]}` (kept, no longer called by the frontend) |
+
+All `<id>` parts are `<int(max=2147483647):id>`, so a huge number is a clean 404, not a database overflow.
 
 **`app/api/post_routes.py` (`/api/posts`)**
 
 | Method | Path | Login | Owner | Handler | Models | Response |
 |---|---|---|---|---|---|---|
-| GET | `/api/posts/` | yes | - | `posts` | Post, User | `{"Posts": [post + users{username, profilePicture, userId}]}`, newest first (`created_at DESC, id DESC`) |
-| GET | `/api/posts/<id>` | yes | - | `get_post_by_id` | Post, User | post + `users`; 404 |
-| POST | `/api/posts/` | yes | - | `create_post` | Post | the new post + `users`; 400 |
-| PUT | `/api/posts/<id>` | yes | yes | `update_post` | Post, User | post + `users`; 404 / 403 / 400 |
-| DELETE | `/api/posts/<id>` | yes | yes | `delete_post` | Post (cascades comments, likes) | `{"message": "Success"}`; 404 / 403 |
-| GET | `/api/posts/<id>/likes/users` | yes | - | `get_user_liked` | Post, PostLike, User | `{"user": [{id, username, profilePicture}]}`; 404 |
-| POST | `/api/posts/<id>/likes` | yes | - | `like_post` | PostLike, Post | `{"likes": n, "postId": id}`; **409** if already liked; 404 |
-| DELETE | `/api/posts/<id>/likes` | yes | own like | `unlike_post` | PostLike, Post | `{"postId", "likes"}` (new count); 404 if you had not liked it |
-| GET | `/api/posts/<id>/comments` | yes | - | `comments_on_post` | Comment, User | `{"Comments": [comment + users{username, id, profilePicture} + myComment]}` |
-| POST | `/api/posts/<id>/comments` | yes | - | `create_comment_post` | Comment | comment + `myComment: true` + `users{userId, username, profilePicture}`; 400 / 404 |
+| GET | `/api/posts/` | yes | - | `posts` | Post, User | Explore: `{"Posts": [post], "nextCursor"}`, newest first |
+| GET | `/api/posts/<id>` | yes | - | `get_post_by_id` | Post, User | post; 404 |
+| POST | `/api/posts/` | yes | - | `create_post` | Post | the new post (accepts optional `thumb_url`, `img_width`, `img_height`); 400 |
+| PUT | `/api/posts/<id>` | yes | yes | `update_post` | Post | post; 404 / 403 / 400 |
+| DELETE | `/api/posts/<id>` | yes | yes | `delete_post` | Post (cascades) | `{"message": "Success"}`; 404 / 403 |
+| GET | `/api/posts/<id>/likes/users` | yes | - | `get_user_liked` | PostLike, User | `{"user": [summary], "nextCursor"}`; 404 |
+| POST | `/api/posts/<id>/likes` | yes | - | `like_post` | PostLike, Post | `{"likes": n, "postId": id, "likedByMe": true}`; **409** if already liked |
+| DELETE | `/api/posts/<id>/likes` | yes | own like | `unlike_post` | PostLike, Post | `{"postId", "likes", "likedByMe": false}`; 404 if you had not liked it |
+| GET | `/api/posts/<id>/comments` | yes | - | `comments_on_post` | Comment, User | `{"Comments": [comment + users + myComment], "nextCursor"}`, oldest first |
+| POST | `/api/posts/<id>/comments` | yes | - | `create_comment_post` | Comment | comment + `myComment: true`; 400 / 404 |
 
-Note the small inconsistency: comments from `GET` have `users.id`, comments from `POST`/`PUT`
-have `users.userId`.
+Every post in a list has the same shape: `id, userId, caption, imgUrl, thumbUrl, imgWidth,
+imgHeight, likes, likedByMe, commentCount, createdAt, users{username, profilePicture, userId}`.
+`serialize_posts()` (in `serializers.py`) builds a whole page with 3 queries: the posts, their
+authors (`selectinload`), and one grouped query each for `likedByMe` and `commentCount`.
 
 **`app/api/comment_routes.py` (`/api/comments`)**
 
@@ -474,37 +510,50 @@ have `users.userId`.
 
 | Method | Path | Login | Owner | Handler | Models | Response |
 |---|---|---|---|---|---|---|
-| GET | `/api/me/following/posts` | yes | - | `me_following_posts` | Post, follows, User | `{"Posts": [post + users]}`; only followed users, newest first, **not your own posts** |
-| POST | `/api/img/upload` | yes | - | `upload_image` | (S3) | multipart field `image`; `{"url": "https://..."}`; 400 / 413 / 502 |
+| GET | `/api/me/following/posts` | yes | - | `me_following_posts` | Post, follows | `{"Posts": [post], "nextCursor"}`: people you follow **and your own posts**, newest first, one query (Z4) |
+| POST | `/api/img/upload` | yes | - | `upload_image` | (S3) | multipart field `image` (+ optional `kind=avatar`); `{"url", "thumbUrl", "width", "height"}`; 400 / 413 / 502 |
 
-How the home feed query works (P10): a subquery
-`SELECT followed_id FROM follows WHERE follower_id = <me>` feeds
-`Post.user_id.in_(...)`, ordered by `created_at DESC, id DESC`, with `selectinload(Post.users)`
-so authors load in one extra query instead of one per post.
+How the home feed query works (P10, Z4): `Post.user_id IN (SELECT followed_id FROM follows WHERE follower_id = me) OR Post.user_id = me`, ordered by `created_at DESC, id DESC`, cut at `limit + 1` rows to build `nextCursor`; it uses `ix_posts_created_at_id`.
 
 How likes stay correct (P6): `like_post` refuses a duplicate (409), increments in SQL
 (`update(Post).values(likes=func.coalesce(Post.likes, 0) + 1)`) so concurrent likes do not overwrite each other, and catches
 `IntegrityError` from the unique constraint as a 409 too. `unlike_post` decrements in SQL (never
-below 0) and `db.session.refresh(post)` so the response has the new count.
+below 0) and `db.session.refresh(post)` so the response has the new count. Both answers include `likedByMe` so the client can sync its state.
 
 ### 5.4 `app/s3_helpers.py`
 
 The S3 client is created at import time from `S3_KEY`/`S3_SECRET` (if empty, boto3 falls back
 to its normal credential chain, e.g. an EC2 role later). One public function does everything:
 
-`process_and_upload_image(file)`:
-1. no file -> 400 "image required";
-2. `allowed_file(filename)` - quick extension check (png, jpg, jpeg, gif, webp) -> 400;
-3. `validate_image(file)` - opens the stream with Pillow and `verify()`s it; the **detected**
-   format (not the file name or browser claim) picks the extension and `Content-Type`; refuses
-   non-images and huge pixel counts (`Image.MAX_IMAGE_PIXELS = 50_000_000`) -> 400;
-4. `get_unique_filename(ext)` - `uploads/<uuid4 hex>.<ext>`;
-5. `upload_file_to_s3(file, key, content_type)` - `s3.upload_fileobj` with no ACL. Returns
-   `{"url": S3_LOCATION + key}` where `S3_LOCATION` is `S3_PUBLIC_URL_BASE` or
-   `https://<bucket>.s3.amazonaws.com/`. If `S3_BUCKET` is empty or AWS errors, returns an error
-   which becomes **502** (the real AWS error is only printed on the server).
+`process_and_upload_image(file, kind="post")` (P24):
+1. no file -> 400 "image required"; `allowed_file()` extension check (png, jpg, jpeg, gif, webp) -> 400;
+2. `validate_image(file)` - Pillow opens and `verify()`s the stream; the **detected** format
+   decides, not the file name; huge pixel counts are refused (`MAX_IMAGE_PIXELS = 50_000_000`);
+3. `make_variants(...)` - applies the EXIF rotation, drops all metadata (so GPS data in a phone
+   photo is not published), then encodes WebP: main image fitted inside 1080x1350 (quality 82),
+   thumbnail 400 px (quality 78); an avatar is 320 px. Animated GIFs keep their first frame;
+4. `get_unique_filename()` - `uploads/<uuid4 hex>.webp` (and `-thumb.webp`);
+5. `upload_file_to_s3(...)` - no ACL, `CacheControl: public, max-age=31536000, immutable`
+   (file names never repeat, so browsers and CloudFront may keep them for a year). Returns
+   `{url, thumbUrl, width, height}`; missing bucket or AWS errors become **502**.
 
-Used by `upload_image` (`/api/img/upload`) and by `sign_up` (profile picture).
+Used by `upload_image` (`/api/img/upload`) and by `sign_up` (profile picture, `kind="avatar"`).
+
+### 5.6 Pagination, indexes and caching (Batch 3)
+
+- **Cursor, not offset.** `OFFSET 5000` makes the database walk 5000 rows and skips or repeats
+  items when new posts arrive. A cursor says "continue after this exact row": for posts the
+  cursor is `<createdAt>,<id>` and the filter is `(created_at, id) < (cursor)`, which the
+  `(created_at, id)` index answers directly. The timestamp ends in `Z` because a `+` in a query
+  string turns into a space. SQLite stores datetimes as text, so those comparisons use
+  `type_coerce(..., String)`.
+- **Fetch one extra row.** Each page asks for `limit + 1` rows; if the extra row exists there is a
+  next page and its predecessor makes the `nextCursor`.
+- **Cache headers (`app/__init__.py`).** `/assets/*` (file names contain a content hash):
+  `public, max-age=31536000, immutable`; `index.html`: `no-cache`; other static files: 1 hour;
+  `/api/*`: `no-store`.
+- **Gunicorn (`gunicorn.conf.py`).** Two `gthread` workers with four threads each, `preload_app`,
+  periodic worker recycling, logs to stdout.
 
 ### 5.5 Seeds and migrations
 
@@ -531,16 +580,11 @@ owned by someone else (`capstone-strava-clone-aktiv`); P37 plans to copy them.
 > (`pg_dump`) before every production migration. The old Heroku workflow that ran
 > `seed undo` + `seed all` on every push to `main` (wiping all data) was **deleted in P0**.
 
-**Migrations (`migrations/versions/`)**: since P15 there is **one baseline**,
-`0001_baseline_schema.py` (revision `0001_baseline`), generated from the models. It creates
-users, follows, posts, comments and post_likes with named constraints, `DEFAULT now()`
-timestamps, and the Batch 1 P6 rule `uq_post_likes_user_post` (one like per user per post).
-The four App Academy migrations, the Heroku `SCHEMA` / `search_path` code in `env.py` and the
-P6 data migration are gone (there was no production data to keep).
+**Migrations (`migrations/versions/`)**: `0001_baseline_schema.py` (revision `0001_baseline`) creates users, follows, posts, comments and post_likes with named constraints, `DEFAULT now()` timestamps and the unique like rule `uq_post_likes_user_post`. Batch 3 stacked three small migrations on it: `0002_indexes` (indexes + `ON DELETE CASCADE` on `follows`), `0003_user_search` (`lower(username)` index) and `0004_post_images` (thumbnail and size columns, nullable so old rows stay valid). Each has a `downgrade()` that was tested. They use `render_as_batch` so SQLite can alter tables; the `lower()` index is an expression index, for which `flask db check` prints a harmless SQLite reflection warning.
 
 To change the schema: edit a model, run `flask db migrate -m "message"`, **read** the generated
-file (it sits on top of `0001_baseline`), then `flask db upgrade`. `flask db check` tells you if
-models and migrations disagree. Never edit the baseline once a real database uses it.
+file (it sits on top of the newest revision), then `flask db upgrade`. `flask db check` tells you if
+models and migrations disagree. Never edit an existing migration once a real database uses it; add a new one.
 
 ---
 
@@ -636,16 +680,20 @@ the login page.
 ### 7.1 Entry point
 
 `react-app/index.html` is the page Vite serves; its `<script type="module"
-src="/src/index.jsx">` starts the app. `src/index.jsx` creates the Redux store with
-`configureStore()` (the default export of `store/index.js`) and renders, with React 19's
-`createRoot(...).render(...)`, `<React.StrictMode>` > `<Provider store>` > `<ModalProvider>` > `<App />`.
-StrictMode runs every effect twice **in development only**, so you will see each page's GET
-requests twice in `npm run dev`; that is expected (all effects only load data).
+src="/src/index.jsx">` starts the app. `src/index.jsx` imports the two self-hosted fonts and
+`styles/tokens.css` + `styles/base.css`, creates the Redux store with `configureStore()` and
+renders `<React.StrictMode>` > `<Provider store>` > `<App />`. StrictMode runs every effect twice
+**in development only**, so you will see each page's GET requests twice in `npm run dev`.
+There is no `ModalProvider` any more.
 
-`context/Modal.jsx`: `ModalProvider` renders an empty `<div>` after the app and shares it via
-context; `<Modal onClose>` uses `createPortal` (from `react-dom`) to draw a background (click =
-close) and content into that div. Every popup (post modal, create post, edit caption, liked-by
-list, follower lists, sign up) uses it.
+`context/Modal.jsx` exports one component, `<Modal title|label size bare onClose>`, built on the
+browser's native `<dialog>` element: on mount it calls `showModal()`, so the browser itself makes
+everything behind it inert, traps Tab inside, closes on Escape and draws the `::backdrop`. The
+component adds a click-on-backdrop close, returns focus to the button that opened it, locks page
+scrolling (a counter, so dialogs can stack) and renders a titled header with a Close button
+(`bare` = no header, the content brings its own). Phones get a bottom sheet, wider screens a
+centred card. Every popup uses it: post detail, post/comment options, new post, likers and people
+lists, sign up.
 
 ### 7.2 Routes (`App.jsx`, React Router 7)
 
@@ -656,17 +704,20 @@ always beats `/:userId`.
 
 | URL | Element | Shows |
 |---|---|---|
-| `/` | `HomeFeed` if logged in, else `LoginPage` | Feed + sidebar, or the login card + sign-up modal |
-| `/users` | inside `ProtectedRoute` > `UsersList` | Early dev page: plain list of users. Its links go to `/users/<id>`, which shows the 404 page |
-| `/explore` | inside `ProtectedRoute` > `ExplorePage` | Grid of every post (`PostGrid`) |
-| `/:userId` | inside `ProtectedRoute` > `UserProfile` | A profile, e.g. `/1` is Demo. A non-numeric value (`/whatever`) shows `NotFound` |
-| `*` | `NotFound` | "Page not found" with a link home (any other URL, e.g. `/a/b/c`) |
+| `/` | `HomeFeed` if logged in, else `LoginPage` | Following row, feed and right rail, or the split-screen login |
+| `/explore` | inside `ProtectedRoute` > `ExplorePage` | Mosaic grid of every post |
+| `/:userId` | inside `ProtectedRoute` > `UserProfile` | A profile, e.g. `/1`. A non-numeric value shows `NotFound`; an unknown id shows "Profile not found" |
+| `*` | `NotFound` | "Page not found" with a link home |
+
+All pages are `React.lazy` chunks (`Suspense`), so the first load downloads only the page you
+open. `App.jsx` also renders the skip link, `<main id="main" tabIndex={-1}>`, the `Toaster`, and a
+`RouteEffects` helper that sets the tab title ("Explore - Postpix") and moves focus to `main` after
+each navigation (not on the first load).
 
 `ProtectedRoute` is a **layout route** (`<Route element={<ProtectedRoute />}>` wrapping the
-three protected routes): logged in -> `<Outlet />` renders the child; logged out ->
+protected routes): logged in -> `<Outlet />` renders the child; logged out ->
 `<Navigate to="/" replace />`. Navigation in code uses `useNavigate()` (`navigate("/explore")`),
-and `<Navigate>` replaces v5's `<Redirect>`. `TempFollow`, `TempPost`, `TempComment` are
-imported but never rendered.
+and `<Navigate>` replaces v5's `<Redirect>`.
 
 ### 7.3 `utils/apiFetch.js`
 
@@ -677,112 +728,81 @@ use `apiFetch`, never raw `fetch`, or writes fail with 400.**
 
 ### 7.4 Redux store map
 
-`store/index.js` calls Redux Toolkit's `configureStore({ reducer, middleware })` with 14 slices.
-RTK sets up redux-thunk and Redux DevTools, and **in development** adds checks that throw if
-state is mutated outside a reducer or a non-serializable value is dispatched; `redux-logger`
-(`createLogger({ collapsed: true })`) is added in development only.
+`store/index.js` combines **six slices** with `combineReducers`; a root wrapper resets the whole
+state to empty when `session/removeUser` is dispatched (logout), so the next person to log in
+never sees the previous person's data. Redux Toolkit provides thunk and DevTools, and in
+development its checks for state mutation and non-serializable values. `redux-logger` was removed
+(Z2). Before Batch 3 there were 14 overlapping slices (Z1 merged them).
 
-Every store file has the same pattern (since P19):
+Thunks (plain async functions) return `null` on success or an array of error messages;
+`utils/api.js` (`api(url, {method, json, form})`) wraps `apiFetch` and returns
+`{ok, status, data, errors}` without ever throwing.
 
-```js
-const postsSlice = createSlice({
-  name: "posts",
-  initialState: {},
-  reducers: {
-    setPosts(state, action) { Object.assign(state, keyBy(action.payload)); },
-    upsertPost(state, action) { state[action.payload.id] = action.payload; },
-    removePost(state, action) { delete state[action.payload]; },
-  },
-});
-const { setPosts, upsertPost, removePost } = postsSlice.actions;
-
-export const getAllPosts = () => async (dispatch) => {   // thunk: API call, then dispatch
-  const response = await apiFetch("/api/posts/");
-  if (response.ok) { const data = await response.json(); dispatch(setPosts(data.Posts)); return data; }
-  return response;
-};
-export default postsSlice.reducer;
-```
-
-Reducers look like they mutate `state`, but RTK uses Immer, which turns that into a safe new
-copy. `store/helpers.js` has `keyBy(list, key)` for the common "list -> object keyed by id"
-case. Thunks are plain async functions (not `createAsyncThunk`) so components keep doing
-`const errors = await dispatch(login(...))`. Action types are `"<slice>/<reducer>"`, e.g.
-`session/setUser`, `posts/upsertPost`, `userPostLikes/addLikedPost`.
-
-| State key | File | State shape | Thunks -> endpoint |
+| State key | File | Holds | Main thunks |
 |---|---|---|---|
-| `session` | `session.js` | `{ user: to_self() + Posts \| null }` | `authenticate` GET `/api/auth/`; `login` POST `/api/auth/login`; `logout` POST `/api/auth/logout`; `signUp` POST `/api/auth/signup` |
-| `posts` | `post.js` | `{ [postId]: post + users }` (merged, never cleared) | `getAllPosts` GET `/api/posts/`; `addPost` POST `/api/posts/`; `updatePost` PUT `/api/posts/:id`; `deletePost` DELETE `/api/posts/:id` |
-| `followingPosts` | `followingPosts.js` | `{ [postId]: post + users }` (replaced each load) | `getAllFollowingPosts` GET `/api/me/following/posts` |
-| `currentPost` | `currentPost.js` | one post object | `getCurrentPost` GET `/api/posts/:id` |
-| `comments` | `comments.js` | `{ [commentId]: comment }` | `getAllComments` GET / `postComment` POST `/api/posts/:id/comments`; `updateComment` PUT / `deleteComment` DELETE `/api/comments/:id`; `clearCommentsAction` (no API) |
-| `follow` | `following.js` | `{ [userId]: {userId, username, profilePicture} }` | `getAllFollowing` GET `/api/users/:id/following`; `addFollowing` POST / `deleteFollowing` DELETE `/api/users/:id/follow` |
-| `profileFollowing` | `profile_following_store.js` | same shape as `follow` | `getProfileFollowing` GET `/api/users/:id/following` |
-| `followers` | `follower.js` | `{ [userId]: {...} }` | `getAllFollowers` GET `/api/users/:id/followers` |
-| `notFollowed` | `nonFollowed.js` | `{ [userId]: to_public }` | `getNonFollowing` GET `/api/users/:id/notfollowing` |
-| `users` | `users.js` | `{ [userId]: to_public }` | `getAllUsers` GET `/api/users/` |
-| `searchUsers` | `search_users.js` | `{ [userId]: user }` | `setSearchUsers` (no API) |
-| `profileUser` | `profileUser.js` | one `to_public()` + `Posts` | `getProfileUser` GET `/api/users/:id` |
-| `userLikes` | `user_likes.js` | `{ [userId]: {id, username, profilePicture} }` (who liked one post) | `getLikesUser` GET `/api/posts/:id/likes/users` |
-| `userPostLikes` | `user_post_like_list.js` | `{ [postId]: {postId, likes} }` (posts **I** liked) | `getUserLikedPostId` GET `/api/users/likes`; `addUserLikedPostId` POST / `deleteUserLikedPostId` DELETE `/api/posts/:id/likes` |
+| `session` | `session.js` | `{ user }` the logged-in user (`to_self()`) | `authenticate`, `login`, `logout`, `signUp`; `patchUser` merges fresh fields |
+| `users` | `users.js` | `byId` (every user seen: counts, `isFollowedByMe`), `followingIds` (the Following row), `suggestionIds` (rail) | `loadFollowing`, `loadSuggestions`, `setFollow(id, follow)` (optimistic) |
+| `posts` | `posts.js` | `byId`: **the only copy of every post** (likes, `likedByMe`, caption, `commentCount`, author) | `createPost`, `editCaption`, `deletePost`, `toggleLike` (optimistic) |
+| `feeds` | `feeds.js` | `home` and `explore`: `{ids, status, error, nextCursor, loadingMore}` | `loadHomeFeed`, `loadExplore`, `loadMoreFeed(feed)` |
+| `profile` | `profile.js` | The open profile: `userId, status (loading/ready/notFound/error), postIds, nextCursor` | `loadProfile`, `loadMoreProfilePosts` |
+| `comments` | `comments.js` | Comments of the open post: `ids, byId, nextCursor, status` | `loadComments`, `loadMoreComments`, `addComment`, `editComment`, `deleteComment` |
 
-**How they overlap (and why it feels confusing).** The three authors each added small stores
-as features grew, so the same data lives in several places:
+**Rules that make this simple.**
 
-- **Posts** live in `posts`, `followingPosts`, `currentPost`, `session.user.Posts` and
-  `profileUser.Posts`. Nothing keeps them in sync; components re-fetch instead.
-- **Following lists**: `follow` and `profileFollowing` call the **same endpoint**.
-  `profileFollowing` is written but no component reads it.
-- **Users**: `users` (all users, used by search and `PostGrid`), `notFollowed` (sidebar
-  suggestions), `searchUsers` (written only by `SearchBar`'s `handleSearch`, which is not wired
-  to anything, so it stays empty).
-- **Likes**: `userPostLikes` (what I liked + counts) vs `userLikes` (who liked one post) vs the
-  `likes` list inside `session.user`.
-- **Refresh by re-fetching:** thunks dispatch other thunks after a write. For example
-  `addPost` also dispatches `getAllFollowing`, `getAllFollowers`, `getProfileFollowing` and
-  `getProfileUser`; `addFollowing(id)` re-fetches `getAllFollowing(id)`, `getAllFollowers(id)`
-  and `getProfileUser(id)` for the **target** user (so the `follow` slice briefly holds the
-  target's following list, not yours, until `CircleFaces` re-fetches on mount).
-- **Object key order:** because slices are objects keyed by numeric id, `Object.values()`
-  returns them in **ascending id order**, whatever order the server sent. Components then call
-  `.reverse()`, so lists display highest id first, which approximates newest first.
-
-P19 moved every reducer to an RTK slice **with the same state shape** (so no component changed) but did not merge these overlapping slices or add RTK Query; that is future work (with P31 loading/error states and P43 tests).
+- A post's data lives in `posts.byId` only; feeds, profiles and tiles keep lists of **ids**. A like
+  in the post dialog therefore shows up in the feed and the grid at once, with no re-fetching.
+- `postCreated` / `postRemoved` are actions that `feeds`, `profile` and `users` listen to
+  (`extraReducers`), so deleting a post removes it from every list and lowers the author's post count.
+- Whether you liked a post (`likedByMe`) comes **with the post**, so tiles no longer each request
+  `/api/users/likes`.
+- Likes and follows are **optimistic**: state changes first, the request follows, and a failure
+  restores the old values and shows a toast.
+- Other state is local: dialogs open/close in component state, the search box owns its results.
 
 ### 7.5 Key components
 
-- **Nav bar** (`components/NavBar/index.jsx`): `Wordmark` logo (link to `/`), `SearchBar`, home
-  icon, `PostFormModal` (plus icon), explore icon, `ProfileDropDownMenu` (profile link + log out).
-- **Search** (`NavBar/SearchBar.jsx`): on mount dispatches `getAllUsers()` (all users), then
-  filters **in the browser** by username prefix, shows up to 10 results; clicking one dispatches
-  `getProfileUser(id)` and navigates to `/<id>`. Server-side search is P23.
-- **Home feed** (`components/HomeFeed/`): `index.jsx` lays out `CircleFaces` (avatars of who you
-  follow, from `follow`), `ActualFeed` (posts from `followingPosts`, loaded with
-  `getAllFollowingPosts()`) and `SideStuff` (your card + `SideNonFollowedUsers` suggestions from
-  `getNonFollowing`). In `ActualFeed` the heart icon is commented out, so the like area is an
-  empty clickable `div`, and one `likePost` boolean is shared by all posts. **Liking works in the
-  post modal, not the feed.** `PostSettingsModal` (three dots) links to the author's profile.
-- **Explore** (`ExplorePage/index.jsx`): dispatches `getAllPosts()` and renders `PostGrid`.
-- **PostGrid** (`reUsedComponents/PostGrid.jsx`): reads `userId` from the URL and
-  `state.users[userId]`. If that user is found it shows only their posts (profile page),
-  otherwise **all posts** (explore page, but also a profile page before `users` has loaded).
-  Each tile is a `SinglePostModal`.
-- **Post modal** (`reUsedComponents/SinglePostModal.jsx`): renders the thumbnail; click opens a
-  `Modal` with the image, author, `EditCaptionThreeDotsModal` (edit/delete, only if
-  `user.id === post.userId`), `CommentContainer` (loads `getCurrentPost` then `getAllComments`),
-  the heart (`handleLikeButton`), `UserLikedListModal` (like count; click for who liked), the
-  date, and the comment form (`submitComment` -> `postComment`). Each `SinglePostModal` calls
-  `getUserLikedPostId()` on mount to decide if the heart starts filled, so a grid of 50 posts
-  makes 50 identical `/api/users/likes` requests.
-- **Edit/delete**: `EditCaptionForm.jsx` -> `updatePost`; `DeletePostModal/DeletePost.jsx` ->
-  `deletePost`; `EditCommentForm.jsx` / `EditCommentModal.jsx` -> `updateComment` / `deleteComment`.
-- **Profile** (`UserProfile/index.jsx` -> `UserInfoBox.jsx`): loads `getProfileUser(userId)`,
-  decides `followTest` (am I in `profileUser.followers`?), shows the **Follow** / **Following**
-  button (`handleFollow` -> `addFollowing`, `handleUnFollow` -> `deleteFollowing`), post count,
-  `UserFollowerListModal` / `UserFollowingListModal`, and `PostGrid`.
-- **Login page** (`LoginPage/`): `LoginForm.jsx` (login + Demo Login), `SignUpModal.jsx` ->
-  `SignUpForm.jsx` + `ProPicImageUpload.jsx` (file picker with preview).
+- **Nav bar** (`NavBar/`): a sticky top bar with the logo (`Wordmark`), `SearchBar` and one
+  `<nav aria-label="Main">` (Home, Explore, New post, account menu). Under 40rem the same `nav`
+  is fixed to the bottom of the screen as a tab bar. `AccountMenu` is a disclosure button
+  (Profile, Log out; Escape and outside click close it).
+- **Search** (`SearchBar.jsx`): a labelled `type=search` input. 250 ms after you stop typing it
+  calls `GET /api/users/search?q=` (10 results), shows them as links, announces the count in a
+  polite live region, and Escape clears it. Nothing is downloaded until you type.
+- **Home** (`HomeFeed/`): `Following` (squircle faces of people you follow), `ActualFeed` (infinite
+  scroll via `LoadMore`; skeleton, error and empty states), `FeedPost` (card: author, photo in a
+  frame that follows the photo's shape between 4:5 and 3:2, like button, comments button, caption),
+  and `Rail` on wide screens (you, "People to follow" with Follow buttons, credits).
+- **Explore** (`ExplorePage/`): `PostGrid mosaic`: every 7th tile is 2x2 and uses the full image.
+- **Post/**: `PostTile` is a `<button>` showing the 400 px thumbnail (counts on hover/focus) and
+  opens `PostDetail`, a large dialog: photo on a dark ground shown whole, author, caption,
+  comments (with Load more), `LikeButton`, likers list, a labelled comment box. `PostOptions`
+  (your own posts: edit caption, delete with confirm), `CommentOptions`, `NewPost` (pick file ->
+  uploads at once -> caption -> Share).
+- **Profile** (`UserProfile/`): `UserInfoBox` shows a skeleton while loading, "Profile not found"
+  for a 404, an error with Try again, otherwise the header (avatar, name, `@username`, stats,
+  Follow/Following with `aria-pressed`) and a `PostGrid` with Load more.
+- **ui/**: `Avatar` (squircle, decorative), `Time` (`<time>`), `StatusMessage`, `Skeletons`,
+  `Toaster` (a `popover`, so toasts show above open dialogs; fed by `utils/toast.js`).
+- **Login page** (`LoginPage/`): split screen (teal panel with the `Mosaic` artwork + form),
+  `LoginForm` (login + Demo Login), `SignUpModal` > `SignUpForm` + `ProPicImageUpload`.
+
+### 7.6 Design system (Batch 3)
+
+All visual values are CSS custom properties in `src/styles/tokens.css`; components use the names,
+never raw values, and a dark set switches on with `prefers-color-scheme`.
+
+| Token group | Values |
+|---|---|
+| Colour (light) | page `#F3F6F5`, surface `#FFFFFF`, ink `#10201E`, ink-2 `#4B5F5C`, line `#D5DEDC`, input border `#778B88`, accent `#0F766E`, accent-strong `#0B5E58`, accent-soft `#D9F0EC`, like `#C92A3C`, danger `#B42318`, photo backdrop `#0D1A19`, brand-deep `#08403B` |
+| Type | Bricolage Grotesque (display: headings, logo) and Figtree (body), both open-licence and self-hosted through `@fontsource-variable`; scale 12/14/16/18/22 px then fluid 26-34 and 36-56 px |
+| Space and shape | 4 px grid (`--space-1`..`--space-8`), radii 8/12/20 px, avatars are 30% "squircles", tap size 44 px |
+| Motion | 120/200 ms with one easing curve; all animation off under `prefers-reduced-motion` |
+
+`styles/base.css` holds the reset, the focus ring, `.btn` variants, `.icon-btn`, `.input`,
+`.avatar`, `.visually-hidden` and `.skip-link`. Breakpoints: 40rem (tab bar becomes top nav,
+dialogs become cards), 48rem (post dialog splits photo | details), 64rem (home right rail).
+Icons are Feather (`react-icons/fi`, MIT). `scripts/check_contrast.py` checks every text/background
+pair for WCAG AA (0 failures).
 
 ---
 
@@ -795,8 +815,8 @@ P19 moved every reducer to an RTK slice **with the same state shape** (so no com
    `csrf_token` cookie.
 2. User clicks **Demo Login** -> `demoLogIn()` in `LoginForm.jsx` ->
    `dispatch(login("demo@aa.io", "password"))`.
-3. `login` thunk (`store/session.js`) -> `apiFetch("/api/auth/login", {method: "POST", body: JSON})`.
-   `apiFetch` adds `X-CSRFToken`.
+3. `login` thunk (`store/session.js`) -> `api("/api/auth/login", {method: "POST", json})`, which
+   goes through `apiFetch` and adds `X-CSRFToken`.
 4. Flask: `CSRFProtect` validates the header -> `auth_routes.login()` -> `LoginForm()` reads
    the JSON -> `validate_on_submit()` runs `user_exists` and `password_matches`
    (`User.check_password`) -> `login_user(user)` stores the id in the session cookie ->
@@ -804,88 +824,75 @@ P19 moved every reducer to an RTK slice **with the same state shape** (so no com
 5. Thunk: `response.ok` -> `dispatch(setUser(data))` (action `session/setUser`) -> `state.session.user`.
 6. `App` re-renders: `user` is set, so `<NavBar />` appears and `/` now renders `HomeFeed`.
    `LoginForm` also returns `<Navigate to="/" replace />`.
-7. `HomeFeed` children mount and fetch: `CircleFaces` -> `getAllFollowing(user.id)`,
-   `ActualFeed` -> `getAllFollowingPosts()`, `SideNonFollowedUsers` -> `getNonFollowing(...)`,
-   and `SearchBar` -> `getAllUsers()`. From now on, `load_user()` in `app/__init__.py` turns the
-   session cookie back into `current_user` on every request.
+7. `HomeFeed` children mount and fetch: `Following` -> `loadFollowing()`, `ActualFeed` ->
+   `loadHomeFeed()` (first 12 posts), `Rail` -> `loadSuggestions()`. The search box fetches nothing
+   until you type. From now on, `load_user()` in `app/__init__.py` turns the session cookie back
+   into `current_user` on every request.
 
 ### 8.2 Creating a post with an image
 
-Posting is **two requests**: upload the image first (get a URL), then create the post with that URL.
+Posting is **two requests**: upload the image first (get its URLs), then create the post with them.
 
-1. User clicks the plus icon -> `PostFormModal` opens a `Modal` with `PostForm`.
-2. `PostForm` renders `ImageUploadComponent setUrl={setUrl}`. User picks a file (`updateImage`
-   stores it) and clicks **Upload** -> `handleSubmit` builds `FormData` with field `image` and
-   calls `apiFetch("/api/img/upload", {method: "POST", body: formData})`.
+1. User clicks **New post** (nav bar) -> `NewPost` opens a `Modal` (native `<dialog>`).
+2. User chooses a file: a local preview appears at once and the file uploads immediately
+   (`FormData` field `image` -> `api("/api/img/upload", {method: "POST", form})`).
 3. Flask: size check (`MAX_CONTENT_LENGTH`, else 413) -> CSRF check -> `@login_required` ->
-   `img_routes.upload_image()` -> `process_and_upload_image()` -> `allowed_file`,
-   `validate_image` (Pillow), `get_unique_filename`, `upload_file_to_s3` -> `{"url": "https://.../uploads/<uuid>.png"}`.
-4. `ImageUploadComponent` calls `setUrl(url)` and shows a preview.
-5. User types a caption and clicks **Post** -> `onPostSubmit` (alerts if no URL yet) ->
-   `dispatch(addPost({userId, caption, imgUrl}))`.
-6. `addPost` thunk -> `apiFetch("/api/posts/", {method: "POST", body: JSON {user_id, caption, img_url}})`.
-   The server ignores `user_id` and uses `current_user.id`.
-7. Flask: `post_routes.create_post()` -> `CreatePost` validates `img_url` and `caption` ->
-   `Post(user_id=current_user.id, ...)` -> commit -> returns the new post + `users`.
-8. Thunk: `upsertPost` adds it to `posts`, then re-fetches `getAllFollowing`, `getAllFollowers`,
-   `getProfileFollowing`, `getProfileUser` for the author and returns `null`.
-9. `PostForm` sees `null` (success) -> `navigate("/<your id>")` -> `onClose()`. Your profile
-   shows the new post in `PostGrid`. (It does not appear in your home feed: the feed only shows
-   people you follow.)
+   `img_routes.upload_image()` -> `process_and_upload_image()` -> validate with Pillow, rotate,
+   strip metadata, encode a 1080 px WebP and a 400 px thumbnail, upload both with a one-year
+   cache header -> `{url, thumbUrl, width, height}`.
+4. The dialog keeps those values. The user writes a caption (counter up to 150) and clicks
+   **Share** -> `dispatch(createPost({caption, imgUrl, thumbUrl, width, height}))`.
+5. `createPost` -> `POST /api/posts/` with `img_url`, `thumb_url`, `img_width`, `img_height`;
+   the server ignores any user id and uses `current_user.id`.
+6. Flask: `create_post()` -> `CreatePost` form validates -> `Post(user_id=current_user.id, ...)` ->
+   commit -> returns the post.
+7. Thunk: `postCreated` is dispatched. `posts` stores it, `feeds` puts its id at the top of Home
+   and Explore, `profile` does so if that profile is open, and `users` raises the author's
+   `postCount`. A "Post shared." toast appears and the dialog navigates to your profile.
 
 If the user uploads an image but never clicks **Post**, the file stays in S3 unused.
 
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant PF as PostForm + ImageUploadComponent
-    participant AF as apiFetch
+    participant NP as NewPost dialog
     participant IR as img_routes.upload_image
     participant S3H as s3_helpers
     participant S3 as Amazon S3
-    participant ST as store/post.js addPost
+    participant ST as store/posts.js createPost
     participant PR as post_routes.create_post
     participant DB as Database
-    U->>PF: choose file, click Upload
-    PF->>AF: POST /api/img/upload (FormData image)
-    AF->>IR: + X-CSRFToken, session cookie
+    U->>NP: choose file
+    NP->>IR: POST /api/img/upload (FormData image, CSRF header)
     IR->>S3H: process_and_upload_image(file)
-    S3H->>S3H: allowed_file, validate_image (Pillow)
-    S3H->>S3: upload_fileobj(uploads/uuid.ext, ContentType)
-    S3H-->>PF: {"url": "https://.../uploads/uuid.ext"}
-    U->>PF: type caption, click Post
-    PF->>ST: dispatch(addPost({caption, imgUrl}))
-    ST->>AF: POST /api/posts/ JSON
-    AF->>PR: + X-CSRFToken
-    PR->>DB: CreatePost valid, INSERT post (user_id = current_user.id)
-    PR-->>ST: new post + users
-    ST->>ST: upsertPost, refetch profile data
-    ST-->>PF: null, then navigate to the profile
+    S3H->>S3H: validate (Pillow), rotate, strip metadata, WebP main + thumb
+    S3H->>S3: upload_fileobj x2 (CacheControl 1 year)
+    S3H-->>NP: {url, thumbUrl, width, height}
+    U->>NP: type caption, click Share
+    NP->>ST: dispatch(createPost(...))
+    ST->>PR: POST /api/posts/ JSON
+    PR->>DB: INSERT post (user_id = current_user.id)
+    PR-->>ST: new post
+    ST->>ST: postCreated: posts, feeds, profile, users update
+    ST-->>NP: null, toast, navigate to the profile
 ```
 
 ### 8.3 Liking a post
 
-Liking happens in the post modal (`SinglePostModal`), opened from the explore page or a profile grid.
+Liking works from the feed card and from the post dialog (same `LikeButton`).
 
-1. When each `SinglePostModal` mounts it dispatches `getUserLikedPostId()` -> `GET /api/users/likes`
-   -> `userPostLikes` becomes `{postId: {postId, likes}}` for posts you liked. If this post is
-   in the list, local state `likePost` starts `true` (filled heart).
-2. User opens the modal and clicks the heart -> `handleLikeButton` -> since `likePost` is false,
-   `dispatch(addUserLikedPostId(post.id))`, then flips `likePost` to true immediately.
-3. `addUserLikedPostId` -> `apiFetch("/api/posts/<id>/likes", {method: "POST"})` with CSRF header.
-4. Flask: `post_routes.like_post(id)` -> `db.get_or_404(Post, id)` -> if a `PostLike` for (you, post)
-   exists, 409 -> else add `PostLike`, `UPDATE posts SET likes = coalesce(likes,0) + 1` ->
-   commit (an `IntegrityError` from the unique constraint also becomes 409) ->
-   `refresh(post)` -> `{"likes": n, "postId": id}`.
-5. Thunk (only if `response.ok`): `getCurrentPost(postId)` refreshes `currentPost`, and
-   `addLikedPost` stores `{likes, postId}` in `userPostLikes`.
-6. `UserLikedListModal` shows `userPostLikes[postId].likes` if you liked it, else
-   `currentPost.likes`, so the number updates.
-7. Clicking again does the reverse: `deleteUserLikedPostId` -> `DELETE /api/posts/<id>/likes`
-   -> `unlike_post` -> new count -> `removeLikedPost` + `getCurrentPost`.
-
-Note the heart is flipped before the server answers and is not flipped back on a 409/404, so the
-icon can get out of sync with the database; a page reload fixes it (P31 plans proper optimistic updates).
+1. The post already carries `likedByMe` and `likes` (from the page query), so the heart is correct
+   without any extra request.
+2. Click -> `dispatch(toggleLike(id))`. If a like request for this post is already running it
+   returns at once. Otherwise it **immediately** patches `posts.byId[id]` (`likedByMe` flipped,
+   `likes` +/- 1), so every place that shows this post updates in the same frame.
+3. `api("/api/posts/<id>/likes", {method: "POST" | "DELETE"})` adds the CSRF header.
+4. Flask: `like_post(id)` -> `db.get_or_404(Post, id)` -> 409 if you already liked it, otherwise add
+   a `PostLike`, `UPDATE posts SET likes = coalesce(likes,0) + 1`, commit (an `IntegrityError` from
+   the unique constraint is also a 409), `refresh(post)` -> `{likes, postId, likedByMe: true}`.
+5. Success: the thunk overwrites the optimistic numbers with the server's. Failure: it restores
+   the old `likes` / `likedByMe` and calls `toast("Could not like this post. Try again.", "error")`.
+6. Unliking is the same with `DELETE` -> `unlike_post`.
 
 ---
 
@@ -896,29 +903,30 @@ icon can get out of sync with the database; a page reload fixes it (P31 plans pr
 | **400 `CSRF check failed`** on a POST/PUT/DELETE | `react-app/src/utils/apiFetch.js`, the calling store file, `app/__init__.py` (`inject_csrf_token`, `handle_csrf_error`) | The call used raw `fetch` (no header), the cookie was not set yet (no GET happened first), the token expired (tab open overnight: reload), or Flask restarted with a new random `SECRET_KEY` |
 | Logged out every time Flask restarts (dev) | `.env` `SECRET_KEY`, `DevConfig` in `app/config.py` | Empty `SECRET_KEY` means a new random key per process, so old session cookies are invalid |
 | **401 `Unauthorized`** from an API call | `@login_required` on the route, `unauthorized()` in `app/__init__.py`, `authenticate` in `store/session.js` | Not logged in or session cookie lost (different origin/port without the Vite proxy, or `Secure` cookies over plain HTTP in production) |
-| **409** when liking | `like_post` in `app/api/post_routes.py`; `handleLikeButton` in `SinglePostModal.jsx` / `ActualFeed.jsx` | You already liked it. Usually the frontend's local `likePost` state is out of sync (it flips before the response; the feed shares one boolean for all posts) |
-| **409** on follow/unfollow | `follow_user` / `unfollow_user` in `app/api/user_routes.py`; `followTest` in `UserInfoBox.jsx` | Already following / not following; the button state was computed from stale `profileUser.followers` |
+| **409** when liking | `like_post` in `app/api/post_routes.py`; `toggleLike` in `store/posts.js` | You already liked it (two tabs, or an old page). The thunk rolls back and shows a toast; reload to resync |
+| **409** on follow/unfollow | `follow_user` / `unfollow_user` in `app/api/user_routes.py`; `setFollow` in `store/users.js` | Already following / not following (another tab); the thunk rolls back and shows a toast |
 | **413** on image upload | `MAX_CONTENT_LENGTH` in `app/config.py`, `app/errors.py` | Request body over 10 MB |
 | **400** "file type not permitted" / "not a valid image" (there is no 415 in this code) | `allowed_file`, `validate_image` in `app/s3_helpers.py`; `accept=` on the file inputs | Wrong extension, or the bytes are not a real JPEG/PNG/WEBP/GIF |
 | **502** "upload failed" / "S3 is not configured" | `upload_file_to_s3` in `app/s3_helpers.py`, `.env` `S3_BUCKET`/`S3_KEY`/`S3_SECRET`, Flask console (real AWS error is printed there) | Empty bucket name, bad credentials, or bucket permissions |
 | Upload works but the image is broken (403 in Network tab) | S3 bucket policy (see `CHANGES.md` P7) | Uploads no longer send `public-read` ACL; the bucket needs a public-read policy on `uploads/*` or CloudFront (P37) |
-| **Home feed empty** | `me_following_posts` in `app/api/me_routes.py`, `ActualFeed.jsx`, `followingPosts.js`, the `follows` table | Feed shows only users you follow, never your own posts; a new user follows nobody; or seeds did not run |
-| Feed or grid order looks odd | `Object.values(...).reverse()` in `ActualFeed.jsx`, `PostGrid.jsx`, `ExplorePage/index.jsx` | Slices are objects keyed by id, so the server's order is lost and the display is "highest id first" |
+| **Home feed empty** | `me_following_posts` in `app/api/me_routes.py`, `ActualFeed.jsx`, `store/feeds.js`, the `follows` table | A new user with no posts who follows nobody sees the "Your feed is empty" state; or seeds did not run |
+| Feed or grid order looks odd | `feeds.ids` / `profile.postIds` in the store, `page_of_posts` in `serializers.py` | Lists keep the server's order (newest first); a new post is added to the top of every list; check the cursor if a page repeats or skips |
 | **404 on refresh** of a page when Flask serves the build | `react_root` and `FRONTEND_DIST` in `app/__init__.py`; `react-app/build/` | Fixed in P18. If it happens: the build is missing (`npm run build`), or the URL has a dot in its last segment (treated as a missing file -> 404) |
-| Profile page shows everyone's posts | `PostGrid.jsx` (`state.users[userId]`), `getAllUsers` in `SearchBar.jsx` | `PostGrid` falls back to all posts if `users` has not loaded that user yet |
-| "Page not found" at `/users/3` or `/abc` | `App.jsx` routes, `UserProfile/index.jsx` | No `/users/:id` route (the `*` route shows NotFound); non-numeric profile ids show NotFound on purpose. An unknown numeric id (`/99999`) still shows an empty profile shell (P31) |
+| "Page not found" at `/users/3` or `/abc` | `App.jsx` routes, `UserProfile/index.jsx` | No `/users/:id` route (the `*` route shows NotFound); non-numeric profile ids show NotFound on purpose. An unknown numeric id (`/99999`) shows "Profile not found" (Z3) |
 | Login says "Email provided not found." for demo | `app/seeds/users.py`, your `DATABASE_URL` | Seeds not loaded into this database (run `flask db upgrade && flask seed all`) |
 | **500** `Internal server error` | Flask console (`app.logger.exception` in `app/errors.py`) | The traceback is logged server-side only; in debug mode it is re-raised so you see it directly |
 | Production container refuses to start | `app/config.py` (`ProdConfig`) | `FLASK_ENV=production` requires `SECRET_KEY` and `DATABASE_URL` (on purpose since P9) |
 | No debugger / auto-reload in `flask run` | `.env` | Flask 3 ignores `FLASK_ENV` for that; set `FLASK_DEBUG=1` or use `flask run --debug` |
 | All data gone | Your shell history, `app/seeds/__init__.py` | Someone ran `flask seed all --reset` / `flask seed undo` locally, or `docker compose down -v`. Both seed commands refuse in production since P0, and the Heroku workflow that wiped data on every push was deleted |
 | `Can't locate revision ...` on `flask db upgrade` | `migrations/versions/`, your database file | The database was created by the pre-P15 migrations. Delete it (`instance/dev.db` or `app/dev.db`) and run `flask db upgrade && flask seed all` |
-| Blank page / `logger is not a function` in `npm run dev` | `react-app/src/store/index.js` | Happened on the P16-P18 commits (redux-logger import); fixed in P19 |
+| Text in the wrong font / `Failed to resolve import @fontsource-variable/...` | `react-app/package.json` | Run `npm install` after pulling Batch 3 (two font packages were added) |
+| `flask db upgrade` errors on an older database | `migrations/versions/` | Batch 3 added revisions 0002-0004; upgrade from the 0001 baseline. Re-creating the local database (`flask db upgrade && flask seed all`) is the easy way |
+| A dialog does not open or close | `context/Modal.jsx` | It needs a browser with `<dialog>` support (all current browsers); the opener must render `<Modal>` only while open |
 | `ModuleNotFoundError` / odd errors after pulling Batch 2 | `.python-version`, `requirements.txt` | Recreate the venv with **Python 3.12** and `pip install -r requirements.txt`; `pipenv` is no longer used |
 
 ---
 
-## 10. What changed in Batches 1 and 2 and what is coming
+## 10. What changed in Batches 1 to 3 and what is coming
 
 Full details, verification steps and caveats are in `CHANGES.md`; the full plan is in
 `MODERNIZATION_PLAN.md`.
@@ -954,18 +962,31 @@ Full details, verification steps and caveats are in `CHANGES.md`; the full plan 
 - **P18** React Router 7, layout-route auth, 404 page, deep-link refresh fixed in Flask.
 - **P19** Redux Toolkit `configureStore` + `createSlice` (same state shape).
 
+**Batch 3 (done, performance and UI/UX):**
+
+- **P20** user payloads carry counts, not follower/following/like lists; summary shape for lists.
+- **P21** indexes on posts, comments, likes and follows; `ON DELETE CASCADE` on follows.
+- **P22** cursor pagination everywhere, with infinite scroll and a "Load more" button fallback.
+- **P23** server-side username search (`lower(username)` index), debounced in the nav bar.
+- **P24** images resized to WebP with a thumbnail, EXIF rotation applied, metadata stripped,
+  one-year cache headers; the 4.7 MB `stock.jpg` is no longer in the bundle.
+- **P25** dead components and commented-out code removed. **P26** gunicorn config and cache headers.
+- **P27-P32** new shell (viewport, icons, manifest), design tokens, new login, responsive layouts
+  with a mobile tab bar, native-`<dialog>` modals, accessibility pass (audit 94 issues -> 0),
+  skeletons, empty/error states, toasts and optimistic like/follow.
+- **Z1** six slices instead of fourteen; **Z2** redux-logger removed; **Z3** "Profile not found";
+  **Z4** your own posts in your home feed, one query.
+
 **P1 (Tyler action, no code):** the AWS key leaked in old git history belongs to the original
 teammate; they must deactivate it. Also generate a new `SECRET_KEY`, and delete the
 `HEROKU_API_KEY` / `HEROKU_APP_NAME` repo secrets on GitHub.
 
-**Coming (Batch 3 and later):** performance (P20-P26: lighter payloads, indexes, pagination,
-server search, image resizing), UI/accessibility (P27-P32: viewport, responsive layout,
-accessible modals, loading/error states, visual refresh), Docker + AWS with CloudFront in front
-of S3 and EC2 (P33-P41, including the new deploy pipeline, backups and a demo reset), tests and
-CI (P42-P45), docs (P46-P48).
+**Coming (later batches):** Docker + AWS with CloudFront in front of S3 and EC2 (P33-P41, including
+the new deploy pipeline, backups and a demo reset), tests and CI (P42-P45), docs (P46-P48).
 
-**Open questions from `CHANGES.md`:** show your own posts in the home feed? keep the teal
-branding? rename the repo to `postpix`? (The deep-link question was answered by P18.)
+**Open questions from `CHANGES.md`:** how the new design looks in a real browser at 375/768/1200 px,
+an `og:image` for link previews, whether to keep the credits, and renaming the repo to `postpix`.
+(Own posts in the feed was answered by Z4, the deep-link question by P18.)
 
 ---
 
@@ -1039,15 +1060,13 @@ Content-Type stops someone hosting HTML on our bucket.
 The home feed did one query per followed user and returned results grouped by user instead of
 by time (an N+1 pattern). I replaced it with one query using a subquery on `follows`, ordered by
 `created_at`, with `selectinload` for authors: about 14 queries down to 3 for the demo user.
-Next steps are lighter user payloads, indexes and pagination.
+In Batch 3 I made user payloads lighter (counts computed in SQL), added indexes and cursor pagination (fetch `limit + 1` rows, send a `nextCursor`), moved search to the server, and resized uploads to WebP with thumbnails.
 
 **9. "How does Redux fit in, and what would you change?"**
 Each feature has a store file with thunks for API calls and a Redux Toolkit slice keyed by id.
 I migrated the hand-written reducers to `createSlice` / `configureStore` without changing the
 state shape, so no component had to change and the risk stayed low. It grew organically
-across three people, so the same data (posts, following lists) still lives in several slices
-and components re-fetch to stay in sync. Next I would merge those slices or move server data
-to RTK Query, and fix ordering by storing ids in arrays.
+across three people, so the same data lived in 14 overlapping slices. In Batch 3 I merged them into six: posts are stored once by id and every list holds ids, and likes and follows update optimistically with a rollback and a toast on failure.
 
 **10. "What would you do next / what are you proudest of?"**
 I upgraded everything to supported versions (Python 3.12, Flask 3, SQLAlchemy 2, Vite,
@@ -1089,7 +1108,10 @@ that wiped the database.
 - **Thunk** - a function dispatched like an action that can do async work (API calls) and then dispatch real actions (redux-thunk middleware).
 - **useSelector / useDispatch** - React-Redux hooks to read state and dispatch actions.
 - **ProtectedRoute** - a layout route that renders its child routes (`<Outlet />`) for logged-in users and redirects to `/` otherwise.
-- **Portal (modal)** - `createPortal` (from `react-dom`) renders the modal into a separate DOM node outside the component tree.
+- **`<dialog>` (modal)** - the browser element that `showModal()` opens in the "top layer": it traps focus, closes on Escape and makes the rest of the page inert, so Postpix does not need its own focus-trap code.
+- **Cursor pagination** - a page request says "give me rows after this one" (`nextCursor`) instead of "skip N rows"; fast with an index and stable while new rows arrive.
+- **Optimistic update** - change the screen first, send the request, undo the change if it fails.
+- **Design tokens** - CSS variables (colours, sizes, spacing) in one file that every component uses.
 - **Vite dev proxy** - `server.proxy` in `react-app/vite.config.js` forwards `/api` calls from port 3000 to Flask on port 5000 in development.
 - **Vite** - the frontend dev server and bundler (replaced Create React App in P16); env vars for the browser must start with `VITE_`.
 - **SPA deep link** - a URL like `/explore` that only exists in React Router; the server must return `index.html` for it.
