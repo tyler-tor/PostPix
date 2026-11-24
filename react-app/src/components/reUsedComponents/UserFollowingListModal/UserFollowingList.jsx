@@ -17,15 +17,15 @@ const UserFollowingList = ({ following, onClose }) => {
       <ul>
         {following.map((user) => {
           return (
-            <NavLink to={`/${user.userId}`} onClick={() => {
-                dispatch(getAllFollowers(user.userId))
-                dispatch(getAllFollowing(user.userId))
-                dispatch(getProfileFollowing(user.userId))
-                dispatch(getProfileUser(user.userId))
+            <NavLink to={`/${user.id}`} onClick={() => {
+                dispatch(getAllFollowers(user.id))
+                dispatch(getAllFollowing(user.id))
+                dispatch(getProfileFollowing(user.id))
+                dispatch(getProfileUser(user.id))
                 onClose()
 
             }}>
-              <li key={user.userId}>
+              <li key={user.id}>
                 <img src={user.profilePicture} />
                 <span>{user.username}</span>
               </li>

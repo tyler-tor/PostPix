@@ -25,17 +25,16 @@ def update_comment(id):
     comment = db.session.get(Comment, id)
     if not comment:
         return {'errors': ['Comment not found']}, 404
-    user = db.session.get(User, current_user.id)
-    user = user.to_dict()
+    user = current_user
     if comment.user_id == current_user.id:
         if form.validate_on_submit():
             comment.body = form.data['body']
             db.session.commit()
             comment_dict = comment.to_dict()
             comment_dict['users'] = {
-            'userId': user['id'],
-            'username': user['username'],
-            'profilePicture' : user['profilePicture']
+            'userId': user.id,
+            'username': user.username,
+            'profilePicture' : user.profile_picture
             }
             comment_dict['myComment'] = True;
             return comment_dict

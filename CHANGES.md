@@ -854,3 +854,57 @@ Toolkit).
   `session/SET_USER` -> `session/setUser`); only visible in DevTools/logger. In
   development RTK will now throw if a component ever mutates store data; that is on
   purpose.
+
+# Batch 3 items (performance and UI/UX)
+
+Batch 3 = P20-P32 (performance, then UI/UX) plus four add-ons Tyler approved: Z1 (merge
+the overlapping Redux slices and load like state once), Z2 (drop redux-logger), Z3 (a
+proper not-found page for unknown profile ids) and Z4 (your own posts in your home feed).
+Commits are in this order: P20, P21, Z4, Z1, Z2, Z3, P22, P23, P24, P25, P26, then the
+look and feel (P27, P32, P28, P29, P30, P31), then the walkthrough update.
+
+## P20 — Lightweight user payloads
+- **Problem:** `User.to_dict()` loaded the full follower list, following list and like
+  list for every user it serialized (3 extra queries per user, megabytes of JSON as the
+  data grows). `/api/users/` with the 14 seeded users ran dozens of queries, and so did
+  login, `/api/auth/` and every follow/unfollow. `/notfollowing` loaded every user and
+  filtered in Python; follow/unfollow loaded the whole follower list to check for
+  duplicates.
+- **What changed:**
+  - A user payload now has counts computed by the database in the same query
+    (`followerCount`, `followingCount`, `postCount`) plus `isFollowedByMe` for the logged-in
+    viewer. The `followers`, `following` and `likes` lists are gone from it. New
+    `User.stats_select(viewer_id)` builds that one query (correlated `COUNT` subqueries and
+    an `EXISTS`), `User.row_to_dict()` turns a row into the payload, and `to_dict()` /
+    `to_self()` use them (still one query each). `to_self()` adds `email` as before.
+  - New "summary" shape for lists (`id`, `username`, `firstName`, `lastName`,
+    `profilePicture`), used by `/followers`, `/following` and `/posts/<id>/likes/users`
+    (one joined query each, no `to_dict()` per row). List items are keyed by `id` now
+    (they used `userId` in the followers/following lists).
+  - `GET /api/users/<id>/notfollowing` is one query with `NOT IN (subquery)`, excludes the
+    user, takes `?limit=` (default 10, max 50). `GET /api/users/` is capped (`?limit=`,
+    default 50, max 100) until P23 replaces its only use.
+  - Follow/unfollow use a single `INSERT` / `DELETE` on the `follows` table (the unique
+    constraint turns a duplicate into the same 409 as before) instead of loading the
+    follower list. They return the same `{currentUser, followingUser}` shape.
+  - Unknown user ids on `/users/<id>` and its sub-routes return a JSON 404.
+  - Comment create/update use `current_user` directly instead of serializing the user.
+  - Frontend (minimum to keep it working; Z1 reshapes the store properly): the profile
+    header uses `isFollowedByMe`, `followerCount`, `followingCount`; follower/following
+    list slices key by `id`; the following modal loads its list from the `/following`
+    endpoint when opened.
+- **Files:** `app/models/user.py`, `app/api/user_routes.py`, `app/api/post_routes.py`,
+  `app/api/comment_routes.py`, and in `react-app/src`: `store/follower.js`,
+  `store/following.js`, `store/profile_following_store.js`, `CircleFaces.jsx`,
+  `UserInfoBox.jsx`, the follower/following list modals.
+- **How to verify:** test-client script (27 checks): counts match the database for every
+  user, `/api/users/` runs at most 4 queries (was ~46), `notfollowing` honours `limit` and
+  never returns the user or people already followed, follow/unfollow counts and 409s,
+  404s for missing users, no `email` or lists in public payloads, comments still work. The
+  older Batch 1/2 scripts (P3, P4, P5, P6, P7, P8, P9, P10, P12, P14, P15, P0 ids) still
+  pass. Production build + jsdom click-through: demo login, feed, explore, like, comment,
+  profile, logout, and Follow/Unfollow on `/9` (followers 0 -> 1 -> 0), 0 console errors.
+- **Things to watch:** this is an API shape change: anything outside this repo reading
+  `user.followers` / `user.following` / `user.likes` would break (nothing in the app does
+  now). `to_dict()` still costs one query per call; for lists always use `stats_select()`.
+  The follower/following lists are not paginated until P22.

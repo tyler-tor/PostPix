@@ -45,27 +45,10 @@ const UserInfoBox = () => {
     })
   },[dispatch, userId])
 
-  useEffect(()=>{
-    // console.log('profileUser', profileUser)
-    if(profileUser.followers && profileUser.id == Number(userId)){
-      for(let i = 0; i < profileUser.followers.length ; i++){
-        let el = profileUser.followers[i]
-        if(el.userId === currUser.id){
-          setFollowTest(true)
-          // console.log('here')
-          return () =>{
-
-          }
-        }
-        else{
-          setFollowTest(false)
-        }
-      }
-    }else {
-      setFollowTest(false)
-    }
-
-  },[userId, profileUser])
+  useEffect(() => {
+    // The profile payload says whether the logged-in user follows this person.
+    setFollowTest(profileUser.id === Number(userId) && !!profileUser.isFollowedByMe);
+  }, [userId, profileUser]);
 
   // console.log('CURRENT STATUS', followTest);
 

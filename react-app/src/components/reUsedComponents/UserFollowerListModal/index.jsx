@@ -44,7 +44,7 @@ const UserFollowerListModal = ({ userId }) => {
           displayFollowers();
         }}
       >
-        <strong>{profileUser.followers.length}</strong> followers
+        <strong>{profileUser.followerCount}</strong> followers
       </a>
       {showModal && (
         <Modal onClose={() => setShowModal(false)}>

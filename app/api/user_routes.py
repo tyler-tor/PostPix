@@ -1,7 +1,10 @@
 from flask import Blueprint, jsonify
 from flask_login import login_required, current_user, logout_user
-from sqlalchemy import select
-from app.models import User, db, Post
+from flask import request
+from sqlalchemy import select, delete, insert
+from sqlalchemy.exc import IntegrityError
+from app.models import User, db, Post, PostLike
+from app.models.user import follows, user_summary
 
 user_routes = Blueprint('users', __name__)
 
@@ -16,20 +19,39 @@ def validation_errors_to_error_messages(validation_errors):
     return errorMessages
 
 
+def _limit(default, maximum=100):
+    """?limit=N from the query string, clamped to 1..maximum."""
+    try:
+        value = int(request.args.get('limit', default))
+    except ValueError:
+        value = default
+    return max(1, min(value, maximum))
+
+
+def _stats_dicts(statement):
+    return [User.row_to_dict(row) for row in db.session.execute(statement)]
+
+
 @user_routes.route('/')
 @login_required
 def users():
-    users = db.session.scalars(select(User)).all()
-    return {'users': [user.to_dict() for user in users]}
+    # Lightweight payloads (counts, no lists) and a cap, so this stays fast
+    # as the number of users grows. Use /api/users/search to look people up.
+    rows = _stats_dicts(User.stats_select(current_user.id)
+                        .order_by(User.id).limit(_limit(50)))
+    return {'users': rows}
 
 
 @user_routes.route('/<int:id>')
 @login_required
 def user(id):
-    #included all posts by the user in the return, it will be useful for looking at profile pages.
-    user = db.get_or_404(User, id, description='User not found')
-    user = user.to_dict()
-    posts = db.session.scalars(select(Post).where(Post.user_id == user['id'])).all()
+    row = db.session.execute(
+        User.stats_select(current_user.id).where(User.id == id)).first()
+    if row is None:
+        return {'errors': ['User not found']}, 404
+    user = User.row_to_dict(row)
+    # Posts of this user for the profile grid (paginated in P22).
+    posts = db.session.scalars(select(Post).where(Post.user_id == id)).all()
     user['Posts'] = [post.to_dict() for post in posts]
     return user
 
@@ -49,116 +71,84 @@ def delete_user(id):
 @user_routes.route('/<int:id>/followers', methods=['GET'])
 @login_required
 def get_followers(id):
-    '''
-        get users followers by id
-    '''
-    user = db.get_or_404(User, id, description='User not found')
-    user = user.to_dict()
-
-    # [post_arr.append(post.to_dict()) for post in posts]
-    # print('TEST------------------------------------------------>',user['followers'])
-
-    return {'followers': user['followers']}
+    """People who follow user <id> (summary shape: id, username, picture...)."""
+    db.get_or_404(User, id, description='User not found')
+    users = db.session.scalars(
+        select(User).join(follows, follows.c.follower_id == User.id)
+        .where(follows.c.followed_id == id).order_by(User.id)).all()
+    return {'followers': [user_summary(u) for u in users]}
 
 
 @user_routes.route('/<int:id>/following', methods=['GET'])
 @login_required
 def get_following(id):
-    '''
-        get user's who user(id) is following
-    '''
-    user = db.session.get(User, id)
-    if(user):
-        user = user.to_dict()
-        # print('TEST------------------------->',user['following'])
-        return{'following': user['following']}
-    return {'errors': ['User not found']}, 404
+    """People user <id> follows."""
+    db.get_or_404(User, id, description='User not found')
+    users = db.session.scalars(
+        select(User).join(follows, follows.c.followed_id == User.id)
+        .where(follows.c.follower_id == id).order_by(User.id)).all()
+    return {'following': [user_summary(u) for u in users]}
+
 
 @user_routes.route('/<int:id>/notfollowing', methods=['GET'])
 @login_required
 def get_not_following(id):
-    currUser = db.session.get(User, id)
-    if(currUser):
-        currUserDict = currUser.to_dict()
-        following = currUserDict['following']
-        users = db.session.scalars(select(User).where(
-            User.username.notin_([dict(followee)['username'] for followee in following]))).all()
-        # print('-----------------------------------------------------------')
-        # print([user.to_dict()['username'] for user in users if user.id != currUser.id])
-        # print('-----------------------------------------------------------')
-        return {'users': [user.to_dict() for user in users if user.id != currUser.id]}
-    return {'errors': ['User not found']}, 404
-
+    """Suggestions: users that <id> does not follow yet (and not <id> itself).
+    One query with NOT IN (subquery) and a LIMIT, instead of loading every user."""
+    db.get_or_404(User, id, description='User not found')
+    already = select(follows.c.followed_id).where(follows.c.follower_id == id)
+    stmt = (User.stats_select(current_user.id)
+            .where(User.id != id, User.id.notin_(already))
+            .order_by(User.id).limit(_limit(10, 50)))
+    return {'users': _stats_dicts(stmt)}
 
 
 @user_routes.route('/<int:id>/follow', methods=['POST'])
 @login_required
-#test with id 6 and id 7
 def follow_user(id):
-    curr_user = db.session.get(User, current_user.id)
     f_user = db.session.get(User, id)
-    if(curr_user and f_user):
-        for follower in f_user.followers:
-            if follower.id == current_user.id:
-                return {'errors': ['You are already following this user']}, 409
-
-
-        f_user.followers.append(curr_user)
-
-        # db.session.add(f_user) comment out to prevent duplicates.
+    if not f_user:
+        return {'errors': ['User not found']}, 404
+    try:
+        db.session.execute(insert(follows).values(
+            follower_id=current_user.id, followed_id=id))
         db.session.commit()
+    except IntegrityError:
+        # The unique (follower, followed) constraint caught a duplicate.
+        db.session.rollback()
+        return {'errors': ['You are already following this user']}, 409
+    return {'currentUser': current_user.to_dict(), 'followingUser': f_user.to_dict()}
 
-        curr_user = curr_user.to_dict()
-        f_user = f_user.to_dict()
-
-        return{'currentUser': curr_user, 'followingUser' : f_user}
-    return {'errors': ['User not found']}, 404
 
 @user_routes.route('/<int:id>/follow', methods=['DELETE'])
 @login_required
 def unfollow_user(id):
-    curr_user = db.session.get(User, current_user.id)
     f_user = db.session.get(User, id)
-
-    if(curr_user and f_user):
-        # curr_user_dict = curr_user.to_dict()
-
-        for idx, user in enumerate(f_user.followers):
-            # user = user.to_dict()
-
-            if(user.id == curr_user.id):
-                #remove current users from following users follower array
-                f_user.followers.remove(user)
-                # db.session.add(f_user) commented out to prevent adding doubles for updating.
-                db.session.commit()
-                curr_user = curr_user.to_dict()
-                f_user = f_user.to_dict()
-
-                return {'currentUser': curr_user, 'followingUser' : f_user}
+    if not f_user:
+        return {'errors': ['User not found']}, 404
+    result = db.session.execute(delete(follows).where(
+        follows.c.follower_id == current_user.id, follows.c.followed_id == id))
+    db.session.commit()
+    if result.rowcount == 0:
         return {'errors': ['You are not following this user']}, 409
-    return {'errors': ['User not found']}, 404
+    return {'currentUser': current_user.to_dict(), 'followingUser': f_user.to_dict()}
 
 @user_routes.route('/<int:id>/likes', methods=['GET'])
 @login_required
 def get_all_liked_posts(id):
-    user = db.session.get(User, id)
-    if(user):
-        post_arr = []
-        for like in user.post_likes:
-            # print('DEBUG USERS LIKED POST ---------------------------------------', like.posts.to_dict())
-            post_arr.append(like.posts.to_dict())
+    db.get_or_404(User, id, description='User not found')
+    posts = db.session.scalars(
+        select(Post).join(PostLike, PostLike.post_id == Post.id)
+        .where(PostLike.user_id == id).order_by(Post.id)).all()
+    return {'likedPosts': [post.to_dict() for post in posts]}
 
-        return {'likedPosts' : post_arr}
-    return {'errors': ['User not found']}, 404
 
 @user_routes.route('/likes')
 @login_required
 def get_posts_liked():
-    user = db.session.get(User, current_user.id)
-
-    user_dict = user.to_dict()
-    for postId in user_dict['likes']:
-        post = db.session.get(Post, postId['postId'])
-        postId['likes'] = post.likes
-    # print('IN ROUTE ROUTE FOR USERS LIKES--------------------------------------------', user_dict['likes'])
-    return {'likes' : user_dict['likes'] }
+    """Posts the current user liked, with each post's like count (one query)."""
+    rows = db.session.execute(
+        select(PostLike.post_id, Post.likes)
+        .join(Post, Post.id == PostLike.post_id)
+        .where(PostLike.user_id == current_user.id)).all()
+    return {'likes': [{'postId': post_id, 'likes': likes} for post_id, likes in rows]}

@@ -8,7 +8,7 @@ const followersSlice = createSlice({
   initialState: {},
   reducers: {
     // Replace the whole list (so removed items disappear).
-    setFollowers: (state, action) => keyBy(action.payload, "userId"),
+    setFollowers: (state, action) => keyBy(action.payload, "id"),
   },
 });
 

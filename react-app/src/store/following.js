@@ -10,7 +10,7 @@ const followSlice = createSlice({
   initialState: {},
   reducers: {
     // Replace the whole list so unfollowed users disappear.
-    setFollowing: (state, action) => keyBy(action.payload, "userId"),
+    setFollowing: (state, action) => keyBy(action.payload, "id"),
     addFollowingUser(state, action) {
       state[action.payload.id] = action.payload;
     },

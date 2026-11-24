@@ -1,6 +1,7 @@
 from .db import db, TimestampMixin, iso
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_login import UserMixin
+from flask_login import UserMixin, current_user
+from sqlalchemy import select, func, exists, literal
 
 # Who follows whom: one row per (follower, followed) pair, no duplicates.
 follows = db.Table('follows',
@@ -47,31 +48,80 @@ class User(TimestampMixin, db.Model, UserMixin):
     def check_password(self, password):
         return check_password_hash(self.password, password)
 
-    def to_public(self):
-        """Fields any logged-in user may see. No email or other private data."""
+    # ------------------------------------------------------------------
+    # Serialization. A user payload never contains the follower / following /
+    # likes lists (those grew with the data and cost 3 extra queries per user).
+    # It carries COUNTS computed by the database in the same query, plus
+    # "isFollowedByMe" for the logged-in viewer. The lists are fetched by their
+    # own endpoints (/followers, /following) when a screen needs them.
+    # ------------------------------------------------------------------
+    @staticmethod
+    def stats_select(viewer_id=None):
+        """SELECT User + follower/following/post counts + isFollowedByMe, as one
+        query. Add your own .where() / .order_by() / .limit() and run it with
+        db.session.execute(...); pass each row to User.row_to_dict()."""
+        from .posts import Post  # local import: posts.py imports from user.py's package
+
+        follower_count = (select(func.count()).select_from(follows)
+                          .where(follows.c.followed_id == User.id)
+                          .correlate(User).scalar_subquery())
+        following_count = (select(func.count()).select_from(follows)
+                           .where(follows.c.follower_id == User.id)
+                           .correlate(User).scalar_subquery())
+        post_count = (select(func.count()).select_from(Post)
+                      .where(Post.user_id == User.id)
+                      .correlate(User).scalar_subquery())
+        if viewer_id is None:
+            followed_by_me = literal(False)
+        else:
+            followed_by_me = exists().where(
+                follows.c.follower_id == viewer_id,
+                follows.c.followed_id == User.id).correlate(User)
+        return select(User,
+                      follower_count.label('follower_count'),
+                      following_count.label('following_count'),
+                      post_count.label('post_count'),
+                      followed_by_me.label('followed_by_me'))
+
+    @staticmethod
+    def row_to_dict(row):
+        user = row[0]
         return {
-            'id': self.id,
-            'username': self.username,
-            'firstName': self.first_name,
-            'lastName': self.last_name,
-            'followers': [{'userId': follower.id, 'username': follower.username, 'profilePicture': follower.profile_picture} for follower in self.followers],
-            'following': [{'userId': follower.id, 'username': follower.username, 'profilePicture': follower.profile_picture} for follower in self.follows],
-            'likes' : [{'postId': like.post_id} for like in self.post_likes],
-            'profilePicture': self.profile_picture,
-            'createdAt': iso(self.created_at),
-            'updatedAt': iso(self.updated_at)
+            'id': user.id,
+            'username': user.username,
+            'firstName': user.first_name,
+            'lastName': user.last_name,
+            'profilePicture': user.profile_picture,
+            'followerCount': row.follower_count,
+            'followingCount': row.following_count,
+            'postCount': row.post_count,
+            'isFollowedByMe': bool(row.followed_by_me),
+            'createdAt': iso(user.created_at),
+            'updatedAt': iso(user.updated_at),
         }
+
+    def to_public(self, viewer_id=None):
+        """Fields any logged-in user may see (no email). One query."""
+        if viewer_id is None and current_user and current_user.is_authenticated:
+            viewer_id = current_user.id
+        row = db.session.execute(
+            User.stats_select(viewer_id).where(User.id == self.id)).one()
+        return User.row_to_dict(row)
 
     def to_self(self):
         """Everything in to_public() plus private fields. Only for the user
         themselves (login, signup, GET /api/auth/)."""
-        return {**self.to_public(), 'email': self.email}
+        return {**self.to_public(viewer_id=self.id), 'email': self.email}
 
     # Old name kept so existing code keeps working; it is the PUBLIC view.
     to_dict = to_public
 
-    # def un_follow(self, id):
-    #     for i in range(len(self.follows)):
-    #         user = self.follows[i]
-    #         if(user.id == id):
-    #             return
+    def to_summary(self):
+        """Smallest user shape, for lists (followers, likes, search, suggestions)."""
+        return user_summary(self)
+
+
+def user_summary(user):
+    return {'id': user.id, 'username': user.username,
+            'firstName': user.first_name, 'lastName': user.last_name,
+            'profilePicture': user.profile_picture}

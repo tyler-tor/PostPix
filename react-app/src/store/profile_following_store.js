@@ -8,7 +8,7 @@ const profileFollowingSlice = createSlice({
   initialState: {},
   reducers: {
     // Replace the whole list (so removed items disappear).
-    setProfileFollowing: (state, action) => keyBy(action.payload, "userId"),
+    setProfileFollowing: (state, action) => keyBy(action.payload, "id"),
   },
 });
 

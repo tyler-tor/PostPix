@@ -122,16 +122,12 @@ def get_user_liked(id):
     '''
         get all users that liked a post
     '''
-    post = db.session.get(Post, id)
-    if(post):
-        post_user_liked_arr = [post_like.users.to_dict() for post_like in post.post_likes]
-        # print('DEBUG IN POSTLIKES --------------------------------------------', post_user_liked_arr)
-        post_user_dict = {'user' : []}
-        for user in post_user_liked_arr:
-            post_user_dict['user'].append({'id':user['id'], 'username':user['username'], 'profilePicture':user['profilePicture']})
-            # print(user)
-        return post_user_dict
-    return {'errors': ['Post not found']}, 404
+    db.get_or_404(Post, id, description='Post not found')
+    users = db.session.scalars(
+        select(User).join(PostLike, PostLike.user_id == User.id)
+        .where(PostLike.post_id == id).order_by(PostLike.id)).all()
+    return {'user': [{'id': u.id, 'username': u.username,
+                      'profilePicture': u.profile_picture} for u in users]}
 
 @post_routes.route('/<int:id>/likes', methods=['POST'])
 @login_required
@@ -208,9 +204,8 @@ def comments_on_post(id):
 @login_required
 def create_comment_post(id):
     post = db.get_or_404(Post, id, description='Post not found')
-    user = db.session.get(User, current_user.id)
+    user = current_user
     form = CreateComment()
-    user = user.to_dict()
     if form.validate_on_submit():
         comment = Comment(
             user_id=current_user.id,
@@ -223,9 +218,9 @@ def create_comment_post(id):
         #! added comment recogintion on the backend to make front end rendering easier.
         comment_dict['myComment'] = True;
         comment_dict['users'] = {
-            'userId': user['id'],
-            'username': user['username'],
-            'profilePicture' : user['profilePicture']
+            'userId': user.id,
+            'username': user.username,
+            'profilePicture' : user.profile_picture
         }
         return comment_dict
     return {'errors': validation_errors_to_error_messages(form.errors)}, 400

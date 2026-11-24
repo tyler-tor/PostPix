@@ -17,8 +17,8 @@ const CircleFaces = () => {
     <>
     {following.map(followed => {
       return (
-        <NavLink to={`/${followed.userId}`}
-        key={followed.userId}
+        <NavLink to={`/${followed.id}`}
+        key={followed.id}
         className="circle-face-children-containers">
           <img src={followed.profilePicture} alt="" />
           <div>{followed.username}</div>

@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Modal } from "../../../context/Modal";
 import { useSelector, useDispatch } from "react-redux";
-import { getAllFollowers } from "../../../store/follower";
-import { getAllFollowing } from "../../../store/following";
+import { getProfileFollowing } from "../../../store/profile_following_store";
 import UserFollowingList from "./UserFollowingList";
 import { getProfileUser } from "../../../store/profileUser";
 
@@ -10,31 +9,22 @@ const UserFollowingListModal = ({ userId }) => {
 //   const following = Object.values(useSelector((state) => state.following));
   const [showModal, setShowModal] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [followNum, setFollowNum] = useState(0);
+  const following = Object.values(useSelector((state) => state.profileFollowing));
   const profileUser = useSelector(state => state.profileUser)
   // console.log(userId)
   const dispatch = useDispatch();
 
   useEffect(() => {
-    dispatch(getAllFollowing(userId)).then((res) => {
-      if (res) {
-        setFollowNum(res.length);
-        // console.log('TESTING', res);
-        // setFollowNum(followers.length)
-      }
-    });
-  }, [dispatch]);
+    dispatch(getProfileFollowing(userId));
+  }, [dispatch, userId]);
 
   useEffect(() =>{
     dispatch(getProfileUser(userId))
   }, [dispatch])
 
-  useEffect(() => {
-    setFollowNum(profileUser.following.length);
-  });
 
   const displayFollowers = () => {
-    dispatch(getAllFollowers(userId)).then(() => {});
+    dispatch(getProfileFollowing(userId));
   };
 
   return (
@@ -45,7 +35,7 @@ const UserFollowingListModal = ({ userId }) => {
           displayFollowers();
         }}
       >
-        <strong>{profileUser.following.length}</strong>
+        <strong>{profileUser.followingCount}</strong>
         {' '}
         <span className="following-text-list">
         following
@@ -56,7 +46,7 @@ const UserFollowingListModal = ({ userId }) => {
           {/* <UserLikedList onClose={() => setShowModal(false)} userId={userId} followers={followers} /> */}
           <UserFollowingList
             onClose={() => setShowModal(false)}
-            following={profileUser.following}
+            following={following}
           />
         </Modal>
       )}
