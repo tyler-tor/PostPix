@@ -1646,3 +1646,67 @@ differ):
     seeded with the new URLs from day one.
   - The manifest's keys must never be changed after upload: CloudFront and browsers cache them
     for a year. To change a picture, use a new key.
+
+## P38 — App side of protecting the origin: trusted proxies, security headers, health checks
+- **Problem:** In production every request reaches Flask through two proxies (CloudFront, then
+  Caddy on the EC2). Without trusting their `X-Forwarded-*` headers Flask believes every request
+  is plain `http` to an internal host name from Caddy's IP address. That matters for more than
+  logs: on HTTPS, Flask-WTF's CSRF check requires the `Referer` to match `https://<request.host>/`,
+  so a wrong host makes every login and post fail with "The referrer does not match the host."
+  (reproduced in a test). There were also no security headers, the health check handed out a
+  session and CSRF cookie on every probe, and there was no way to check the database.
+- **What changed:**
+  - **ProxyFix with configurable trusted hops:** `TRUSTED_PROXY_HOPS` (how many proxies to
+    believe for `X-Forwarded-Proto` and `X-Forwarded-Host`; default **1 in production** =
+    Caddy, **0 elsewhere** = ignore them) and `TRUSTED_PROXY_HOPS_FOR` (the same for
+    `X-Forwarded-For`, the client IP; defaults to `TRUSTED_PROXY_HOPS`). With 0/0 nothing is
+    wrapped, so locally nobody can fake these headers.
+  - **Security headers** on every Flask response: `X-Content-Type-Options: nosniff`,
+    `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`; on `/api/*`
+    also `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` and
+    `Cross-Origin-Resource-Policy: same-origin`; in production
+    `Strict-Transport-Security: max-age=31536000` (`HSTS_SECONDS`, 0 turns it off). The
+    existing `Cache-Control: no-store` on API answers stays, so CloudFront never caches them.
+  - **Health checks:** `/api/health` stays the cheap liveness check (no database, no login) and
+    now sets **no cookies**. New **`/api/health/db`** runs `SELECT 1` and answers 200
+    `{"status":"ok","database":"ok"}` or 503 `{"status":"error","database":"unreachable"}`
+    (details only in the server log). Use it for monitoring / after a deploy, **not** as the
+    Docker health check (a database blip must not make Docker restart a healthy container).
+- **What the infra repo must do (Caddy / CloudFront), or CSRF fails:**
+  1. CloudFront's `/api/*` behaviour must forward the viewer's `Host` header to the origin (an
+     origin request policy that includes `Host`, e.g. the managed "AllViewer"), plus cookies,
+     query strings and the `X-CSRFToken`, `Content-Type` and `Referer` headers; caching disabled.
+  2. Caddy (one site block per app, matched by host) passes `Host` through and sets
+     `X-Forwarded-Host` / `X-Forwarded-For` by itself. It sets `X-Forwarded-Proto` to the scheme
+     of its own connection, so if CloudFront talks to the EC2 over plain HTTP add
+     `header_up X-Forwarded-Proto https` in the PostPix block (the visitor's connection is
+     always HTTPS at CloudFront). If X-Forwarded-Proto says `https` but the host is wrong,
+     every POST fails the CSRF check.
+  3. Only one proxy (Caddy) writes those headers, so keep `TRUSTED_PROXY_HOPS=1`. For real client
+     IPs either configure Caddy's `trusted_proxies` with CloudFront's ranges and set
+     `TRUSTED_PROXY_HOPS_FOR=2`, or leave it at 1 (then Flask sees the CloudFront edge IP, which
+     is harmless today: nothing in the app uses the client IP yet).
+  4. The React site's headers come from a CloudFront **response headers policy** on the S3
+     behaviour: HSTS, `nosniff`, `frame-ancestors 'none'`/`X-Frame-Options: DENY`, and a CSP
+     such as `default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline';
+     font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self';
+     form-action 'self'` (with `MEDIA_BASE_URL` on the same domain, `img-src 'self'` covers all
+     production images). Its `Referrer-Policy` must **not** be `no-referrer` /
+     `same-origin`-less variants that drop the Referer on same-origin requests; use
+     `strict-origin-when-cross-origin`.
+  5. The secret `X-Origin-Verify` header from the plan is best checked in Caddy (shared by all
+     three apps), not in Flask; nothing app-side was added for it.
+- **Files:** `app/__init__.py`, `app/config.py`, new `tests/test_proxy_security.py`.
+- **How to verify:** `python -m pytest tests/test_proxy_security.py` (12 tests: forwarded
+  headers trusted with 1 hop and ignored with 0; production defaults; login with CSRF **on**
+  behind the proxy with a same-origin Referer -> 200, a foreign Referer -> 400 "referrer does not
+  match", no token -> 400; every security header; HSTS only in production and switchable off;
+  `/api/health` without cookies; `/api/health/db` 200, and 503 on an unreachable database while
+  `/api/health` stays 200). By hand: `curl -i localhost:8000/api/health` shows the headers and
+  no `Set-Cookie`; `curl localhost:8000/api/health/db`.
+- **Things to watch:**
+  - `/api/health/db` is public through CloudFront. It only runs `SELECT 1` and reveals nothing,
+    but Caddy can restrict it if you prefer.
+  - gunicorn's own access log still shows the proxy's IP (it does not use ProxyFix). Caddy's
+    access log has the real client IP.
+  - gunicorn adds a `Server: gunicorn` header; Caddy can remove it (`header -Server`).

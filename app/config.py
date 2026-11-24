@@ -128,6 +128,20 @@ class Config:
         # https://postpix.tylertorrero.dev/media. See app/media.py.
         self.MEDIA_BASE_URL = (os.environ.get('MEDIA_BASE_URL') or '').strip().rstrip('/')
 
+        # Reverse proxies in front of the app (P38). In production a request
+        # goes browser -> CloudFront -> Caddy (on the EC2) -> gunicorn, and
+        # Caddy sets X-Forwarded-Proto / X-Forwarded-Host / X-Forwarded-For.
+        # TRUSTED_PROXY_HOPS = how many proxies to believe for Proto and Host
+        # (default 1 in production = Caddy, 0 = ignore them, e.g. locally,
+        # where nobody is in front and anyone could send fake headers).
+        # TRUSTED_PROXY_HOPS_FOR = the same for X-Forwarded-For (client IP),
+        # which can have more entries (CloudFront appends one too).
+        default_hops = 1 if self.IS_PRODUCTION else 0
+        self.TRUSTED_PROXY_HOPS = _env_int('TRUSTED_PROXY_HOPS', default_hops)
+        self.TRUSTED_PROXY_HOPS_FOR = _env_int('TRUSTED_PROXY_HOPS_FOR', self.TRUSTED_PROXY_HOPS)
+        # Strict-Transport-Security max-age in production (0 = do not send).
+        self.HSTS_SECONDS = _env_int('HSTS_SECONDS', 31536000)
+
 
 class DevConfig(Config):
     """Local development: SQLite by default, random key if none is set."""

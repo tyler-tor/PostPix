@@ -11,6 +11,8 @@ from flask import Flask, request, send_from_directory
 from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect, CSRFError, generate_csrf
+from sqlalchemy import text
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import get_config
 from .errors import register_error_handlers
@@ -45,6 +47,16 @@ def create_app(config_name=None):
     app.config.setdefault('FRONTEND_DIST', os.path.abspath(
         os.path.join(app.root_path, '..', 'react-app', 'build')))
     app.config.from_object(get_config(config_name))
+
+    # Behind CloudFront + Caddy, trust their X-Forwarded-* headers so
+    # request.scheme is "https", request.host is the public site name and
+    # request.remote_addr is the visitor. Flask-WTF's CSRF check compares the
+    # Referer with https://<request.host>/ on HTTPS requests, so the host must
+    # be the public one. Off unless TRUSTED_PROXY_HOPS / _FOR are set (P38).
+    hops = app.config['TRUSTED_PROXY_HOPS']
+    for_hops = app.config['TRUSTED_PROXY_HOPS_FOR']
+    if hops or for_hops:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=for_hops, x_proto=hops, x_host=hops)
 
     # Extensions
     db.init_app(app)
@@ -84,24 +96,60 @@ def create_app(config_name=None):
 
     @app.after_request
     def inject_csrf_token(response):
-        response.set_cookie(
-            'csrf_token',
-            generate_csrf(),
-            secure=app.config['IS_PRODUCTION'],
-            samesite='Lax',
-            # Must be readable by JavaScript so apiFetch can copy it into the
-            # X-CSRFToken header. The token alone is not a secret: an attacker's
-            # site cannot read our cookies, which is what makes this safe.
-            httponly=False)
+        # Health checks run every few seconds from Docker/monitoring and need
+        # no session, so they get no cookies (and no session work).
+        if not request.path.startswith('/api/health'):
+            response.set_cookie(
+                'csrf_token',
+                generate_csrf(),
+                secure=app.config['IS_PRODUCTION'],
+                samesite='Lax',
+                # Must be readable by JavaScript so apiFetch can copy it into the
+                # X-CSRFToken header. The token alone is not a secret: an attacker's
+                # site cannot read our cookies, which is what makes this safe.
+                httponly=False)
         # Never let a browser or CDN keep an API answer (it is per-user data).
         if request.path.startswith('/api/'):
             response.headers.setdefault('Cache-Control', 'no-store')
         return response
 
+    @app.after_request
+    def security_headers(response):
+        # P38. The React site's own headers (its Content-Security-Policy etc.)
+        # are set by CloudFront, which serves it from S3; these cover what
+        # Flask answers, mostly JSON.
+        headers = response.headers
+        headers.setdefault('X-Content-Type-Options', 'nosniff')
+        # Full URL to our own origin (Flask-WTF checks it on HTTPS), only the
+        # origin to other sites. Never "no-referrer": that breaks CSRF checks.
+        headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+        headers.setdefault('X-Frame-Options', 'DENY')
+        if request.path.startswith('/api/'):
+            # JSON never needs to load anything or be framed.
+            headers.setdefault('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'")
+            headers.setdefault('Cross-Origin-Resource-Policy', 'same-origin')
+        if app.config['IS_PRODUCTION'] and app.config['HSTS_SECONDS']:
+            headers.setdefault('Strict-Transport-Security', f"max-age={app.config['HSTS_SECONDS']}")
+        return response
+
     @app.route('/api/health')
     def health():
-        # Used by Docker / load balancer health checks. No login, no DB.
+        # Liveness check for Docker / Caddy / CloudFront: the process answers.
+        # No login, no database, no cookies, so it stays cheap and a database
+        # hiccup never makes Docker restart a healthy container.
         return {'status': 'ok'}
+
+    @app.route('/api/health/db')
+    def health_db():
+        # Optional readiness check: one trivial query. For monitoring and
+        # deploy scripts, NOT for the Docker HEALTHCHECK (see above).
+        try:
+            db.session.execute(text('SELECT 1'))
+        except Exception:
+            app.logger.exception('Database health check failed')
+            db.session.rollback()
+            return {'status': 'error', 'database': 'unreachable'}, 503
+        return {'status': 'ok', 'database': 'ok'}
 
     # The React build is only served when SERVE_FRONTEND is on (local
     # development). In production the API is API-only: CloudFront serves the
