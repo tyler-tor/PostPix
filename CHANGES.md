@@ -1037,3 +1037,18 @@ look and feel (P27, P32, P28, P29, P30, P31), then the walkthrough update.
   `redux-logger` is still installed until Z2. The profile header shows nothing while
   loading or when the user does not exist until Z3 and P31 add those states. The nav
   search still downloads up to 100 users once (replaced by server search in P23).
+
+## Z2 — Drop redux-logger (add-on)
+- **Problem:** `redux-logger` printed every action to the browser console in development
+  and was a source of bugs (the P16 import error fixed in P19). The Redux DevTools
+  browser extension already shows every action and state, and Redux Toolkit wires it in.
+- **What changed:** removed the `redux-logger` package and its code in `store/index.js`,
+  which is now just `configureStore({ reducer })`. RTK still adds redux-thunk, DevTools
+  support and, in development only, the "no state mutation / serializable values" checks.
+- **Files:** `react-app/package.json`, `react-app/package-lock.json`,
+  `react-app/src/store/index.js`.
+- **How to verify:** `npm install` + `npm run build` OK, `npm audit` reports 0
+  vulnerabilities; `redux-logger` is gone from the lock file and the source; jsdom
+  click-through on a development-mode bundle (RTK's checks on): 0 console errors.
+- **Things to watch:** install the "Redux DevTools" browser extension to inspect actions;
+  nothing is logged to the console any more.

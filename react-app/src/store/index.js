@@ -1,7 +1,4 @@
 import { combineReducers, configureStore } from "@reduxjs/toolkit";
-// Named import: redux-logger is an old CommonJS package and its default
-// export is not reliably a function after bundling.
-import { createLogger } from "redux-logger";
 import session from "./session";
 import users from "./users";
 import posts from "./posts";
@@ -24,17 +21,10 @@ const appReducer = combineReducers({ session, users, posts, feeds, profile, comm
 const reducer = (state, action) =>
   appReducer(action.type === "session/removeUser" ? undefined : state, action);
 
-// configureStore (Redux Toolkit) sets up redux-thunk, the Redux DevTools
-// browser extension and, in development, checks that catch accidental state
-// mutation. redux-logger is added in development only.
-const configureAppStore = (preloadedState) =>
-  configureStore({
-    reducer,
-    preloadedState,
-    middleware: (getDefaultMiddleware) =>
-      import.meta.env.DEV
-        ? getDefaultMiddleware().concat(createLogger({ collapsed: true }))
-        : getDefaultMiddleware(),
-  });
+// configureStore (Redux Toolkit) sets up redux-thunk and the Redux DevTools
+// browser extension (install it to see every action and state change), and in
+// development it throws if state is mutated outside a reducer or a
+// non-serializable value is dispatched.
+const configureAppStore = (preloadedState) => configureStore({ reducer, preloadedState });
 
 export default configureAppStore;
