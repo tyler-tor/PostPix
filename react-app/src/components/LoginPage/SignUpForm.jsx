@@ -3,7 +3,6 @@ import { useSelector, useDispatch } from "react-redux";
 import { Navigate } from "react-router";
 import { signUp } from "../../store/session";
 import { useNavigate } from "react-router";
-// import ImageUploadComponent from "../NavBar/ImageUploadComponent/ImageUploadComponent";
 import ProPicImageUpload from "./ProPicImageUpload";
 import Wordmark from "../Brand/Wordmark";
 

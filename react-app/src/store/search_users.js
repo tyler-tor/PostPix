@@ -18,6 +18,4 @@ export const setSearchUsers = (users) => (dispatch) =>{
     }
 }
 
-
-
 export default searchUsersSlice.reducer;

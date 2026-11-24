@@ -53,10 +53,6 @@ const ActualFeed = () => {
               <PostSettingsModal post={post} />
             </div>
             <div id="post-image" className="feed-child post-image-wrapper">
-              {/* <SinglePostModal
-                post={post}
-                className="feed-child post-image-wrapper"
-              /> */}
               <img
                 className="feed-child post-image-wrapper"
                 src={post.imgUrl}
@@ -68,15 +64,7 @@ const ActualFeed = () => {
                 className="no-styling"
                 onClick={() => handleLikeButton(post)}
               >
-                {/* <AiOutlineHeart className="post-modal-icons-likes-comments except-first-icon-in-modal" /> */}
-                {/* {likePost ? (
-                  <AiFillHeart className="post-modal-icons-likes-comments no-left-padding red" />
-                ) : (
-                  <AiOutlineHeart className="post-modal-icons-likes-comments no-left-padding" />
-                )} */}
               </div>
-              {/* <IoChatbubbleOutline className="post-icon-button reverse" /> */}
-              {/* <SinglePostModalButton post={post} /> */}
             </div>
             <div className="feed-child likes-count-container">
               <strong>{post.likes} likes </strong>

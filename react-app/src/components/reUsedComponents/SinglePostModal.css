@@ -21,7 +21,6 @@
   width: 100%;
 }
 
-
 .post-modal-content-container {
   display: flex;
   flex-direction: column;
@@ -37,11 +36,6 @@
   border-bottom: 1px solid rgb(219, 219, 219);
   margin-left: 16px;
 }
-
-/* .post-modal-content-container-image-wrapper {
-  height: 32px;
-  width: 32px;
-} */
 
 .post-modal-content-container-image-wrapper img{
   object-fit: cover;
@@ -130,7 +124,6 @@
   font-weight: bold;
   cursor: pointer;
 }
-
 
 .comments-section-container {
   display: flex;

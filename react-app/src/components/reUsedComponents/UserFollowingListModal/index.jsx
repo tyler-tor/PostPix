@@ -6,12 +6,10 @@ import UserFollowingList from "./UserFollowingList";
 import { getProfileUser } from "../../../store/profileUser";
 
 const UserFollowingListModal = ({ userId }) => {
-//   const following = Object.values(useSelector((state) => state.following));
   const [showModal, setShowModal] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const following = Object.values(useSelector((state) => state.profileFollowing));
   const profileUser = useSelector(state => state.profileUser)
-  // console.log(userId)
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -21,7 +19,6 @@ const UserFollowingListModal = ({ userId }) => {
   useEffect(() =>{
     dispatch(getProfileUser(userId))
   }, [dispatch])
-
 
   const displayFollowers = () => {
     dispatch(getProfileFollowing(userId));
@@ -43,7 +40,6 @@ const UserFollowingListModal = ({ userId }) => {
       </a>
       {showModal && (
         <Modal onClose={() => setShowModal(false)}>
-          {/* <UserLikedList onClose={() => setShowModal(false)} userId={userId} followers={followers} /> */}
           <UserFollowingList
             onClose={() => setShowModal(false)}
             following={following}

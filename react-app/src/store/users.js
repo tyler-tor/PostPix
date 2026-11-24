@@ -25,10 +25,5 @@ export const getAllUsers = () => async (dispatch) => {
     return response
 }
 //!moved to its own store.
-// export const setSearchUsers = (users) => (dispatch) =>{
-//     if(users){
-//         dispatch(setUsers(users))
-//     }
-// }
 
 export default usersSlice.reducer;

@@ -3,8 +3,6 @@
 import { getCurrentPost } from "./currentPost"
 import apiFetch from "../utils/apiFetch";
 
-
-
 import { createSlice } from "@reduxjs/toolkit";
 import { keyBy } from "./helpers";
 
@@ -26,13 +24,11 @@ const userPostLikesSlice = createSlice({
 const { setLikedPosts, addLikedPost, removeLikedPost } = userPostLikesSlice.actions;
 
 export const deleteUserLikedPostId = (postId) => async (dispatch) =>{
-    // console.log('THUNK POST ID IN DELETE------------------------------------------------',postId);
     const response = await apiFetch(`/api/posts/${postId}/likes`,{
         method: 'DELETE'
     })
     if(response.ok){
         const data = await response.json();
-        // console.log('IN THUNK FOR DELETE POST', data);
         //!added a dispatch to current post to update with this thunk
         dispatch(getCurrentPost(data.postId))
         dispatch(removeLikedPost(data.postId))
@@ -45,7 +41,6 @@ export const getUserLikedPostId = () => async (dispatch) =>{
     const response = await apiFetch('/api/users/likes')
     if(response.ok){
         const data = await response.json()
-        // console.log(data.likes);
         //!added a dispatch to current post to update with this thunk
         dispatch(setLikedPosts(data.likes))
         return data.likes
@@ -60,17 +55,9 @@ export const addUserLikedPostId = (postId) => async (dispatch) =>{
     })
     if(response.ok){
         const data = await response.json()
-        // console.log('ADD LIKE THUNK', data);
-        // dispatch(setLikedPosts(data.likes))
         dispatch(getCurrentPost(data.postId))
         dispatch(addLikedPost(data))
     }
 }
-
-//export const deleteUserLikedPostId = (postId) => async(dispatch) =>{
-
-//}
-
-
 
 export default userPostLikesSlice.reducer;

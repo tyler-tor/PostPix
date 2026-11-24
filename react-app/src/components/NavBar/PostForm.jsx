@@ -25,7 +25,6 @@ const PostForm = ({ onClose }) => {
       if(url){
         return await dispatch(addPost(post))
         .then((res)=>{
-          // console.log(res);
           if(res){
             setErrors(res)
 

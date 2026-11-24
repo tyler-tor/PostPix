@@ -66,15 +66,4 @@ export const getAllFollowing = (id) => async (dispatch) => {
     return response
 }
 
-// export const getAllFollowers = (id) => async (dispatch) => {
-//     const response = await apiFetch(`/api/users/${id}/followers`)
-
-//     if(response.ok){
-//         const data = await response.json();
-//         dispatch(getFollowers(data.followers));
-//         return data
-//     }
-//     return response
-// }
-
 export default followSlice.reducer;

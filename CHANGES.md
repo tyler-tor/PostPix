@@ -949,3 +949,33 @@ look and feel (P27, P32, P28, P29, P30, P31), then the walkthrough update.
   posts too.
 - **Things to watch:** the route name still says `following`; renaming it would break the
   frontend for no gain. P22 will paginate this endpoint.
+
+## P25 — Bundle and dead-code cleanup
+- **Problem:** The frontend carried unused test components (`TempFollow`, `TempLogin`,
+  `TempLogout`, `TempPost`, `TempComment`, `User`, `UsersList`) that were still imported
+  by `App.jsx` and made hard-coded API calls (e.g. `/api/posts/1`, `/api/comments/4`);
+  82 commented-out `console.log` calls; hundreds of lines of commented-out code; and
+  the whole app shipped as one 337 kB script.
+- **What changed:**
+  - Deleted the seven unused components and the `CreatePost` / `CreateComment` folders
+    that only held them, plus the `/users` route that listed every user (it now falls to
+    the 404 page like any unknown URL).
+  - Removed all commented-out `console.*` lines and commented-out code (JS lines, JSX
+    `{/* <Component /> */}` blocks, and a few commented CSS rules), found with a script and
+    then reviewed in the diff. Explanatory comments were kept.
+  - `App.jsx`: each page (login, home, explore, profile, 404) is loaded with `React.lazy`
+    inside `<Suspense>`, so the first load downloads only what that page needs.
+    The main script went from 337 kB to 242 kB (gzip 105 kB -> 76 kB); the rest arrives
+    in small per-page chunks (the post modal chunk loads when a page that has one is
+    opened).
+  - Icons: the app already uses a single library (`react-icons`, from P17), so nothing to
+    merge there.
+- **Files:** `react-app/src/App.jsx`, the deleted component folders, and light edits in
+  about 40 `.jsx` / `.js` / `.css` files (only removed comments).
+- **How to verify:** `npm run build` OK. jsdom click-through on both a production-mode and
+  a development-mode single-file bundle: demo login, feed, explore (50 images), post modal
+  open + like + comment + close, profile, logout, 0 console errors in both.
+- **Things to watch:** this commit only removes dead code and comments; behaviour is
+  unchanged. The 4.7 MB `stock.jpg` is still imported at this point (P24 removes it).
+  Lazy routes show a blank page for a moment on a slow connection; P31 adds proper loading
+  states.

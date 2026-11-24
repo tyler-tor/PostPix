@@ -15,8 +15,6 @@ const PostGrid = () => {
       return post.userId === user.id
     }
   });
-  // console.log('posts', posts)
-  // console.log('userPosts', userPosts.reverse())
   const dispatch = useDispatch()
 
   useEffect(() => {
@@ -42,18 +40,8 @@ const PostGrid = () => {
         })
       )
       }
-      {/* <div className="post-grid-children first-two-grid-children">
-        <SinglePostModal img={stock} />
-      </div> */}
-      {/* <div className="post-grid-children first-two-grid-children">
-          <SinglePostModal img={post.posts[1].imgUrl} />
-        </div>
-        <div className="post-grid-children">
-          <SinglePostModal img={post.posts[2].imgUrl} />
-        </div> */}
     </div>
   );
-  // });
 };
 
 export default PostGrid;

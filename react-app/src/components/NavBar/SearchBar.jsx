@@ -17,7 +17,6 @@ const SearchBar = () => {
 
   useEffect(() => {
     dispatch(getAllUsers()).then(() => {
-      // console.log(users);
     });
   }, [dispatch]);
 
@@ -29,7 +28,6 @@ const SearchBar = () => {
       setSearchEmpty(true)
     }
   },[searchInput])
-
 
   const updateSearch = (e) => {
     setSearchInput(e.target.value);
@@ -48,9 +46,7 @@ const SearchBar = () => {
         return true;
       }
     });
-    // console.log(res);
     dispatch(setSearchUsers(res));
-    // navigate('/search')
   };
 
   //TODO when user clicks search, redirect to new page with a list of users that match search.
@@ -58,7 +54,6 @@ const SearchBar = () => {
     <>
       <div className="search-container">
         <div className="search-inner">
-          {/* <button onClick={handleSearch}>Search</button> */}
 
           <input
             type="text"

@@ -38,14 +38,12 @@ export const postComment = (comment) => async (dispatch) => {
   });
   if (response.ok) {
     const newComment = await response.json();
-    // console.log('IN THUNK FOR COMMENTS===================', newComment);
     dispatch(addComment(newComment));
     return null;
   }
   else if (response.status < 500) {
     const data = await response.json();
     if (data.errors) {
-      // console.log(data.errors);
       return data.errors;
     }
   }
@@ -70,7 +68,6 @@ export const updateComment = (payload) => async (dispatch) => {
 
   if (response.ok) {
     let updatedComment = await response.json()
-    // console.log('update comment thunk ------------------------', updatedComment);
     dispatch(
       updateCommentBody({
         body,
@@ -82,7 +79,6 @@ export const updateComment = (payload) => async (dispatch) => {
   else if (response.status < 500) {
     const data = await response.json();
     if (data.errors) {
-      // console.log(data.errors);
       return data.errors;
     }
   }
@@ -96,7 +92,6 @@ export const deleteComment = (commentId) => async (dispatch) => {
   const response = await apiFetch(`/api/comments/${commentId}`, {
     method: "DELETE",
   });
-  // console.log(response);
   if (response.ok) {
     const data = await response.json();
     dispatch(removeComment(commentId));
@@ -111,7 +106,6 @@ export const getAllComments = (id) => async (dispatch) => {
 
   if (response.ok) {
     const data = await response.json();
-    // console.log('IN THUNK---------------------', data);
     dispatch(setComments(data.Comments));
     return data;
   }

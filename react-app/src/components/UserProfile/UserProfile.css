@@ -48,17 +48,6 @@
   justify-content:space-between;
 }
 
-/* .username-and-follow-button-row button{
-  color: white;
-  width: 75.4px;
-  background-color: var(--pp-accent);
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 5px 9px;
-  cursor: pointer;
-  margin: 0px 20% 0px;
-} */
-
 .username-and-follow-button-row div{
   font-size: 28px;
 }

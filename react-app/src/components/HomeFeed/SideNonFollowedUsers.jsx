@@ -7,11 +7,9 @@ import './SideNonFollow.css'
 const SideNonFollowedUsers = ({userId}) => {
     const dispatch = useDispatch()
     const nonFollowers = Object.values(useSelector(state => state.notFollowed))
-    // console.log(nonFollowers)
     useEffect(() => {
         dispatch(getNonFollowing(userId))
     }, [dispatch])
-
 
     return (
         <div className="side-non-follower-list">

@@ -6,13 +6,10 @@ const DeletePost = ({ onClose, postId }) => {
 
   const handleYes = async (e) => {
     e.preventDefault();
-    // console.log('DELETE POST', postId.postId);
     const del = await dispatch(deletePost(postId.postId)).then(() => {
       //!commented this out because it seemed it was causing a memory leak.
       //!model still closes even though it is commented out.
-      // onClose()
     });
-    // console.log('TESTING!!!');
   };
 
   const handleNo = (e) => {

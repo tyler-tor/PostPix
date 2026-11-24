@@ -1,10 +1,8 @@
 import React, { useState } from "react";
-// import { useNavigate } from "react-router";
 import "./ImageUploadComponent.css";
 import apiFetch from "../../../utils/apiFetch";
 //!pass in a setValue from postForm to get the image url.
 const ImageUploadComponent = ({ setUrl }) => {
-  // const navigate = useNavigate(); // so that we can redirect after the image upload is successful
   const [image, setImage] = useState(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [uploadedImg, setUploadImg] = useState(false);
@@ -30,12 +28,10 @@ const ImageUploadComponent = ({ setUrl }) => {
       setUrl(img_url.url);
       setUploadImg(true);
       setPrevImgUrl(img_url.url);
-      // console.log(img_url.url);
     } else {
       setImageLoading(false);
       // a real app would probably use more advanced
       // error handling
-      // console.log("error");
     }
   };
 

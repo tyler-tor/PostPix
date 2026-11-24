@@ -7,11 +7,6 @@ import "./HomeFeed.css";
 
 const SideStuff = () => {
   const user = useSelector((state) => state.session.user);
-  // const navigate = useNavigate()
-
-  // const redirectGithub = () => {
-  //   navigate('https://github.com/tyler-tor/Instagram-Group-Project')
-  // }
 
   return (
     <div className="side-stuff-container">
@@ -63,13 +58,6 @@ const SideStuff = () => {
             </div>
           </div>
         </div>
-        {/* <div className="github-img-container">
-          <img
-          alt="Github"
-          src="https://pngimg.com/uploads/github/github_PNG40.png"
-          className="github-img"
-          onClick={redirectGithub}></img>
-        </div> */}
       </div>
       <div className="side-stuff-second-container"></div>
       <span className="suggestions-for-you-styling secondary-gray-text">

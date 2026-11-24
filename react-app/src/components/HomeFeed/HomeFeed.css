@@ -52,13 +52,7 @@
   border-radius: 100%;
 }
 
-
-
-
 /* Home Feed  */
-
-
-
 
 /* Home Feed Actual Feed Portion */
 
@@ -145,8 +139,6 @@
   text-decoration: none;
  }
 
-
-
  .except-top {
   border-top: none;
  }
@@ -161,7 +153,6 @@
   height: 100%;
   width: 100%;
 }
-
 
 .like-comment-icon-container {
   display: flex;
@@ -237,7 +228,6 @@
   resize: none;
 }
 
-
 /* SideStuff */
 
 .side-stuff-container {
@@ -298,19 +288,6 @@
   text-decoration: none;
   color: black;
 }
-
-
-/* .github-img {
-  width: 2em;
-  height: 2em;
-  padding-top: 1em;
-  padding-left: 1em;
-}
-
-.github-img:hover {
-  cursor: pointer;
-} */
-
 
 .about-links-styling {
   display: flex;

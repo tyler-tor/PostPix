@@ -25,6 +25,4 @@ export const getProfileFollowing = (id) => async (dispatch) => {
     return response
 }
 
-
-
 export default profileFollowingSlice.reducer;

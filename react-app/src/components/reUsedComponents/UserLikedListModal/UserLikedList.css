@@ -11,7 +11,6 @@
     color: black;
 }
 
-
 .user-liked-list li{
     display: flex;
     align-items: center;
@@ -22,7 +21,6 @@
 .user-liked-list span{
     margin-left: 14px;
 }
-
 
 .user-liked-list img{
     height: 32px;

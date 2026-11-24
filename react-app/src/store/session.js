@@ -72,7 +72,6 @@ export const logout = () => async (dispatch) => {
   }
 };
 
-
 export const signUp = (username, email, password, first_name, last_name, image) => async (dispatch) => {
   // Sent as multipart form data so the optional profile picture file can be
   // uploaded in the same request (the upload endpoint requires a logged-in user).

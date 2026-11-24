@@ -8,9 +8,7 @@ import { getProfileUser } from "../../../store/profileUser";
 import "./UserFollowerList.css";
 
 const UserFollowerList = ({ followers, onClose }) => {
-  // const [isLoaded, setIsLoaded] = useState(true);
   const dispatch = useDispatch();
-
 
   return (
     <div className="user-liked-list">

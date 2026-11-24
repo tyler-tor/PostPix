@@ -8,9 +8,7 @@ import { getProfileFollowing } from "../../../store/profile_following_store";
 import "./UserFollowingList.css";
 
 const UserFollowingList = ({ following, onClose }) => {
-  // const [isLoaded, setIsLoaded] = useState(true);
   const dispatch = useDispatch();
-
 
   return (
     <div className="user-liked-list">

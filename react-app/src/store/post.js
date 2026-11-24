@@ -35,7 +35,6 @@ export const deletePost = (id) => async (dispatch) =>{
   })
   if(response.ok){
     dispatch(removePost(id))
-    // dispatch(clearCommentsAction())
 
     return 'Sucess!'
   }
@@ -54,13 +53,11 @@ export const updatePost = (caption) => async (dispatch) =>{
     const editedPost = await response.json()
     dispatch(upsertPost(editedPost))
     dispatch(getCurrentPost(caption.id))
-    // console.log('DEBUG EDITED POST-------------------', editedPost);
     return null
   }
   else if (response.status < 500) {
     const data = await response.json();
     if (data.errors) {
-      // console.log(data.errors);
       return data.errors;
     }
   }
@@ -70,7 +67,6 @@ export const updatePost = (caption) => async (dispatch) =>{
 }
 
 export const addPost = (post) => async (dispatch) =>{
-  // console.log('IN THUNK ACTION FOR POST', post);
   const response = await apiFetch('/api/posts/',{
     method: 'POST',
     headers: {'Content-Type' : 'application/json'},
@@ -94,7 +90,6 @@ export const addPost = (post) => async (dispatch) =>{
   else if (response.status < 500) {
     const data = await response.json();
     if (data.errors) {
-      // console.log(data.errors);
       return data.errors;
     }
   }
@@ -104,23 +99,11 @@ export const addPost = (post) => async (dispatch) =>{
 
 }
 
-// export const getAllFollowingPosts = () => async (dispatch) => {
-//   const response = await apiFetch("/api/me/following/posts");
-
-//   if (response.ok) {
-//       const data = await response.json();
-//       dispatch(getFollowingPosts(data.Posts));
-//       return data;
-//   }
-//   return response;
-// }
-
 export const getAllPosts = () => async (dispatch) => {
   const response = await apiFetch("/api/posts/");
 
   if (response.ok) {
     const data = await response.json();
-    // console.log("test", data);
     dispatch(setPosts(data.Posts));
     return data;
   }

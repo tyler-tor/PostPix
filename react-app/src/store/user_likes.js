@@ -18,13 +18,10 @@ export const getLikesUser = (postId) => async dispatch =>{
     const response = await apiFetch(`/api/posts/${postId}/likes/users`)
     if(response.ok){
         const data = await response.json()
-        // console.log(data.user[0]);
-        // console.log(data.user);
         dispatch(setLikeUsers(data.user))
         return data
     }
 
 }
-
 
 export default userLikesSlice.reducer;

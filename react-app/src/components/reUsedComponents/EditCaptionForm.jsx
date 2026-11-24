@@ -9,11 +9,9 @@ const EditCaptionForm = ({ onClose, postId }) => {
   const user = useSelector((state) => state.session.user);
   const dispatch = useDispatch();
 
-
   const onCaptionSubmit = async (e) => {
     e.preventDefault();
     // Need to create a function that posts to database
-    // console.log(postId);
     let editedCaption = {
                 id : postId.postId,
                 caption: caption,
@@ -21,7 +19,6 @@ const EditCaptionForm = ({ onClose, postId }) => {
 
     await dispatch(updatePost(editedCaption)).then((res)=>{
       if(res){
-        // console.log('caption modal',res);
         setErrors(res)
       }
       else{
@@ -29,7 +26,6 @@ const EditCaptionForm = ({ onClose, postId }) => {
       }
     })
     .catch(e => {
-      // console.log(e);
     })
   };
 

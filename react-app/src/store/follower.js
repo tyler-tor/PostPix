@@ -25,5 +25,4 @@ export const getAllFollowers = (id) => async (dispatch) => {
     return response
 }
 
-
 export default followersSlice.reducer;

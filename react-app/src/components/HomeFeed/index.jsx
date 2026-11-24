@@ -6,17 +6,7 @@ import SideStuff from "./SideStuff";
 import { useSelector, useDispatch } from "react-redux";
 import { getAllFollowingPosts } from "../../store/followingPosts";
 
-
 const HomeFeed = () => {
-  // const posts = Object.values(useSelector((state) => state.followingPosts));
-  // const dispatch = useDispatch()
-
-
-  // useEffect(() => {
-  //   dispatch(getAllFollowingPosts())
-  // }, [dispatch])
-
-  // if( !posts ) return null
 
   return (
     <div className="home-feed-page-wrapper">

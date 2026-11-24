@@ -36,7 +36,6 @@ const ProfileDropDownMenu = () => {
   }, [showMenu]);
 
   const handleProfileClick = e =>{
-    // e.preventDefault();
     dispatch(getProfileUser(user.id))
   }
 

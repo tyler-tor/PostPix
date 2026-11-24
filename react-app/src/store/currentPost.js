@@ -16,11 +16,9 @@ export const getCurrentPost = (postId) => async dispatch=>{
     const response = await apiFetch(`/api/posts/${postId}`)
     if(response.ok){
         const data = await response.json();
-        // console.log(data);
         dispatch(setCurrentPost(data))
         return data
     }
 }
-
 
 export default currentPostSlice.reducer;

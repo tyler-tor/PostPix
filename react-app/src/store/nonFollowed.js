@@ -16,7 +16,6 @@ const { setNonFollowing } = notFollowedSlice.actions;
 
 export const getNonFollowing = (id) => async(dispatch) => {
     const response = await apiFetch(`/api/users/${id}/notfollowing`)
-    // console.log('response', response)
     if(response.ok){
         const data = await response.json();
         dispatch(setNonFollowing(data.users));
@@ -24,6 +23,5 @@ export const getNonFollowing = (id) => async(dispatch) => {
     }
     return response
 }
-
 
 export default notFollowedSlice.reducer;

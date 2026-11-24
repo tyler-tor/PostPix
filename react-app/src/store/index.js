@@ -1,6 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
 // Named import: redux-logger is an old CommonJS package and its default
-// export is not reliably a function after bundling.
 import { createLogger } from "redux-logger";
 import postsReducer from "./post";
 import commentsReducer from "./comments";
@@ -17,9 +16,7 @@ import searchUserReducer from "./search_users";
 import profileFollowingReducer from "./profile_following_store";
 import profileUserReducer from "./profileUser";
 
-
 // One entry per slice. The key is the name components use in useSelector,
-// e.g. useSelector((state) => state.posts).
 const reducer = {
   session,
   posts: postsReducer,

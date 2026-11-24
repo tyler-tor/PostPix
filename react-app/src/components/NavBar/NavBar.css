@@ -16,10 +16,6 @@
   margin-right: 120px;
 }
 
-/* .search-portion{
-
-} */
-
 .search-portion-input-area {
   color: rgb(119, 119, 119);
   padding-left: 14px;
@@ -61,9 +57,7 @@
   cursor: pointer;
 }
 
-
 /* Profile Button Styling */
-
 
 .profile-button {
   color: rgb(225, 225, 225);
@@ -87,7 +81,6 @@
   color: #E25959;
   border: 1px solid #E25959;
 }
-
 
 .dropdown-wrapper {
   direction: rtl;
@@ -143,6 +136,5 @@ div.isHidden  {
 .post-form-default-submit-button:hover {
   cursor: pointer;
 }
-
 
 /* Post Form Styling */
