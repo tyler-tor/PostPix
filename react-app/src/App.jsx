@@ -23,7 +23,7 @@ const RouteEffects = ({ loggedIn }) => {
   const first = useRef(true);
   useEffect(() => {
     const name = pathname === "/" ? (loggedIn ? "Home" : "Log in") : TITLES[pathname] || (/^\/\d+$/.test(pathname) ? "Profile" : "Page not found");
-    document.title = `${name} - Postpix`;
+    document.title = `${name} - PostPix`;
     if (first.current) {
       first.current = false;
       return;

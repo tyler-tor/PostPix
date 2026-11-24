@@ -1,6 +1,6 @@
-# Postpix Code Walkthrough
+# PostPix Code Walkthrough
 
-A guided tour of the Postpix codebase as it is **today on the `modernize` branch** (after
+A guided tour of the PostPix codebase as it is **today on the `modernize` branch** (after
 Batch 1, items P2-P11, Batch 2, items P0 and P12-P19, and Batch 3, items P20-P32 plus the
 Z1-Z4 add-ons: safe seeding, app factory, Python 3.12 / Flask 3 / SQLAlchemy 2, a clean
 migration baseline, Vite, React 19, React Router 7, Redux Toolkit, then database indexes,
@@ -9,7 +9,7 @@ design system with accessible dialogs). It is written for someone who knows Pyth
 not looked at this project in a while. Every file, function and endpoint named here exists in
 the code; if you find one that does not, the code changed after this was written.
 
-Postpix started in 2022 as a three-person team project (Tyler, Alan De Leon, Theo Fandrich)
+PostPix started in 2022 as a three-person team project (Tyler, Alan De Leon, Theo Fandrich)
 and is now maintained by Tyler. See `CHANGES.md` for what Batches 1 to 3 changed and
 `MODERNIZATION_PLAN.md` for what is planned.
 
@@ -32,7 +32,7 @@ and is now maintained by Tyler. See `CHANGES.md` for what Batches 1 to 3 changed
 
 ## 1. The app in one minute
 
-Postpix is a photo-sharing web app. You sign up (optionally with a profile picture) or click
+PostPix is a photo-sharing web app. You sign up (optionally with a profile picture) or click
 **Demo Login**, then you can:
 
 - see a **home feed** of posts from people you follow,
@@ -711,7 +711,7 @@ always beats `/:userId`.
 
 All pages are `React.lazy` chunks (`Suspense`), so the first load downloads only the page you
 open. `App.jsx` also renders the skip link, `<main id="main" tabIndex={-1}>`, the `Toaster`, and a
-`RouteEffects` helper that sets the tab title ("Explore - Postpix") and moves focus to `main` after
+`RouteEffects` helper that sets the tab title ("Explore - PostPix") and moves focus to `main` after
 each navigation (not on the first load).
 
 `ProtectedRoute` is a **layout route** (`<Route element={<ProtectedRoute />}>` wrapping the
@@ -944,7 +944,7 @@ Full details, verification steps and caveats are in `CHANGES.md`; the full plan 
 - **P9** config hardening (required secrets in production, cookie flags, echo off), CORS removed,
   `crypt` imports removed, form length limits and trimming.
 - **P10** home feed in one query, newest first.
-- **P11** original Postpix branding (wordmark, teal accent, favicon, demo note) to stop looking
+- **P11** original PostPix branding (wordmark, teal accent, favicon, demo note) to stop looking
   like Instagram's login page.
 
 **Batch 2 (done, modern stack):**
@@ -1013,7 +1013,7 @@ helped with that work, say so plainly, and be ready to explain every change in y
 that is what the interviewer is testing.
 
 **1. "Walk me through the architecture."**
-Postpix is a React + Redux single-page app talking to a Flask JSON API. Components dispatch
+PostPix is a React + Redux single-page app talking to a Flask JSON API. Components dispatch
 thunks, thunks call a small `apiFetch` wrapper, Flask blueprints validate input with Flask-WTF,
 use SQLAlchemy models, and return JSON. Images go to S3 and only the URL is stored in Postgres
 (SQLite locally). In production Flask also serves the built React files, so it is all one origin.
@@ -1094,7 +1094,7 @@ that wiped the database.
 - **Flask-Login** - extension that remembers who is logged in through the session cookie and provides `current_user` and `@login_required`.
 - **Session cookie** - a cookie signed with `SECRET_KEY` holding the logged-in user id; can be read but not forged without the key.
 - **Flask-WTF / WTForms** - form classes that validate input (`DataRequired`, `Length`, custom validators); Flask-WTF adds CSRF support.
-- **CSRF** - cross-site request forgery: another site tricking your browser into making a request to Postpix with your cookies.
+- **CSRF** - cross-site request forgery: another site tricking your browser into making a request to PostPix with your cookies.
 - **CSRF token** - a secret value the attacker cannot read; sent in the `X-CSRFToken` header and checked by `CSRFProtect`.
 - **IDOR** - insecure direct object reference: acting on someone else's data by changing an ID.
 - **N+1 query** - one query for a list plus one query per item; slow.
@@ -1108,7 +1108,7 @@ that wiped the database.
 - **Thunk** - a function dispatched like an action that can do async work (API calls) and then dispatch real actions (redux-thunk middleware).
 - **useSelector / useDispatch** - React-Redux hooks to read state and dispatch actions.
 - **ProtectedRoute** - a layout route that renders its child routes (`<Outlet />`) for logged-in users and redirects to `/` otherwise.
-- **`<dialog>` (modal)** - the browser element that `showModal()` opens in the "top layer": it traps focus, closes on Escape and makes the rest of the page inert, so Postpix does not need its own focus-trap code.
+- **`<dialog>` (modal)** - the browser element that `showModal()` opens in the "top layer": it traps focus, closes on Escape and makes the rest of the page inert, so PostPix does not need its own focus-trap code.
 - **Cursor pagination** - a page request says "give me rows after this one" (`nextCursor`) instead of "skip N rows"; fast with an index and stable while new rows arrive.
 - **Optimistic update** - change the screen first, send the request, undo the change if it fails.
 - **Design tokens** - CSS variables (colours, sizes, spacing) in one file that every component uses.

@@ -24,7 +24,7 @@ const UserInfoBox = ({ userId }) => {
   // A user id that does not exist gets a proper not-found page instead of an
   // empty shell. (Loading and error states come with P31.)
   if (profile.userId === userId && profile.status === "notFound") {
-    return <NotFound title="Profile not found" message="There is no Postpix user with that id. They may have deleted their account." />;
+    return <NotFound title="Profile not found" message="There is no PostPix user with that id. They may have deleted their account." />;
   }
   if (profile.userId === userId && profile.status === "error") {
     return (

@@ -14,7 +14,7 @@ import "./NavBar.css";
 const NavBar = () => (
   <header className="topbar">
     <div className="topbar-inner">
-      <Link to="/" className="topbar-logo" aria-label="Postpix home">
+      <Link to="/" className="topbar-logo" aria-label="PostPix home">
         <Wordmark size="sm" />
       </Link>
       <SearchBar />

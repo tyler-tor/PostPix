@@ -1,4 +1,4 @@
-/* Postpix design tokens.
+/* PostPix design tokens.
    Everything visual (colour, type, space, shape, motion) is a variable here, so a
    restyle is a change in this file. Components use these names, never raw values.
    Dark colours switch on automatically with the operating system setting. */
@@ -13,7 +13,7 @@
   --line: #d5dedc;          /* hairlines and borders */
   --line-strong: #778b88;   /* input borders (3:1 against surface and page) */
 
-  --accent: #0f766e;        /* Postpix teal: buttons, links, active states */
+  --accent: #0f766e;        /* PostPix teal: buttons, links, active states */
   --accent-strong: #0b5e58; /* hover/pressed */
   --accent-soft: #d9f0ec;   /* tinted backgrounds */
   --on-accent: #ffffff;     /* text on --accent */

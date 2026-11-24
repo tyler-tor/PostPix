@@ -22,10 +22,10 @@ const LoginPage = () => (
       <div className="auth-card">
         <LoginForm />
         <p className="auth-switch">
-          New to Postpix? <SignUpFormModal />
+          New to PostPix? <SignUpFormModal />
         </p>
         <p className="demo-note">
-          Postpix is a portfolio demo project. It is not affiliated with any other social network.
+          PostPix is a portfolio demo project. It is not affiliated with any other social network.
           Please don't reuse a real password here.
         </p>
       </div>

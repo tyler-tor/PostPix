@@ -1,4 +1,4 @@
-# Instagram Clone Group Project
+# PostPix
 
 Welcome to our Instagram Clone Group Project. This is a web app that allows you to socialize with other users through posts and comments.
 

@@ -1,4 +1,4 @@
-"""Postpix Flask application.
+"""PostPix Flask application.
 
 Use the app factory: `create_app()` builds a new, fully configured app.
   * `flask ...` commands find it automatically (FLASK_APP=app).

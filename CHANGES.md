@@ -1435,3 +1435,8 @@ the P32 section.
   clicked (the dialog makes the rest of the page inert); they dismiss themselves after
   4 s (7 s for errors). Comment and caption edits are not optimistic: they show inline
   errors in their dialogs.
+
+## Brand — official name is "PostPix"
+- **What changed:** every user-facing spelling of the name (page and tab titles, wordmark, logo label, sign-up/login text, empty states, link-preview tags, web manifest, favicon title, README title, walkthrough) is now **PostPix**. The wordmark reads "Post" + "Pix" with "Pix" in the accent colour.
+- **Not changed (on purpose):** lowercase technical identifiers such as the repo name and URL (`github.com/tyler-tor/postpix`). Older entries in this file keep the spelling they were written with.
+- **Files:** `react-app/index.html`, `react-app/public/{favicon.svg,manifest.webmanifest}`, `react-app/src/**` (12 files), `app/__init__.py`, `README.md`, `docs/WALKTHROUGH.md`

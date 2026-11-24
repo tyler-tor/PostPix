@@ -44,7 +44,7 @@ const SignUpForm = () => {
 
   return (
     <form className="signup" onSubmit={onSignUp} aria-labelledby="signup-title" noValidate>
-      <h2 id="signup-title">Create your Postpix account</h2>
+      <h2 id="signup-title">Create your PostPix account</h2>
       {errors.length > 0 && (
         <ul className="form-errors" role="alert">
           {errors.map((error) => (
@@ -85,7 +85,7 @@ const SignUpForm = () => {
       </div>
       <ProPicImageUpload setImage={setImage} />
       <p className="demo-note">
-        Postpix is a portfolio demo. Use a made-up email and a password you don't use anywhere else.
+        PostPix is a portfolio demo. Use a made-up email and a password you don't use anywhere else.
       </p>
       <button className="btn btn-primary btn-block" type="submit" disabled={busy}>
         Sign up

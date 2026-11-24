@@ -1,7 +1,7 @@
 {
-  "name": "Postpix",
-  "short_name": "Postpix",
-  "description": "Postpix is a photo-sharing portfolio demo app.",
+  "name": "PostPix",
+  "short_name": "PostPix",
+  "description": "PostPix is a photo-sharing portfolio demo app.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

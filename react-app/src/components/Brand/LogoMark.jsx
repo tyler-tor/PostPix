@@ -1,6 +1,6 @@
 import React from "react";
 
-// The Postpix mark: a teal rounded square with a white "P". Same shapes as
+// The PostPix mark: a teal rounded square with a white "P". Same shapes as
 // public/favicon.svg. Decorative: the words next to it carry the name.
 const LogoMark = ({ className = "" }) => (
   <svg className={className} viewBox="0 0 64 64" aria-hidden="true" focusable="false">
