@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import PostGrid from "../reUsedComponents/PostGrid";
+import PostGrid from "../Post/PostGrid";
 import { loadExplore, loadMoreFeed } from "../../store/feeds";
 import LoadMore from "../reUsedComponents/LoadMore";
 import "./ExplorePage.css";

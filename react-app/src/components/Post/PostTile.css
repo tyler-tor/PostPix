@@ -1,0 +1,40 @@
+.tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 400ms var(--ease);
+}
+.tile:hover img,
+.tile:focus-visible img { transform: scale(1.04); }
+.tile:focus-visible { outline-offset: 3px; border-radius: var(--radius-md); }
+
+/* Counts slide up from the bottom edge. */
+.tile-meta {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-3) var(--space-3);
+  background: linear-gradient(to top, rgb(5 20 18 / 0.78), transparent);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 650;
+  opacity: 0;
+  transform: translateY(0.5rem);
+  transition: opacity var(--base) var(--ease), transform var(--base) var(--ease);
+}
+.tile-meta span { display: inline-flex; align-items: center; gap: var(--space-1); }
+.tile:hover .tile-meta,
+.tile:focus-visible .tile-meta { opacity: 1; transform: none; }
+@media (hover: none) { .tile-meta { display: none; } }

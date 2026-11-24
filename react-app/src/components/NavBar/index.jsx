@@ -3,7 +3,7 @@ import { NavLink } from "react-router";
 import ProfileDropDownMenu from "./ProfileDropDownMenu";
 import Wordmark from "../Brand/Wordmark";
 import SearchBar from "./SearchBar";
-import PostFormModal from "./PostFormModal";
+import NewPost from "../Post/NewPost";
 import { AiOutlineCompass, AiFillHome } from "react-icons/ai";
 import "./NavBar.css";
 
@@ -26,7 +26,7 @@ const NavBar = () => {
           <NavLink to={`/`} className="icon-wrapper">
             <AiFillHome className="icon-buttons" />
           </NavLink>
-          <PostFormModal />
+          <NewPost />
           <NavLink to={`/explore`} className="icon-wrapper">
             <AiOutlineCompass className="icon-buttons side-step" />
           </NavLink>

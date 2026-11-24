@@ -12,7 +12,7 @@ const SignUpFormModal = () => {
         Sign up
       </button>
       {showModal && (
-        <Modal onClose={() => setShowModal(false)}>
+        <Modal title="Create your account" size="md" onClose={() => setShowModal(false)}>
           <SignUpForm onClose={() => setShowModal(false)} />
         </Modal>
       )}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import PostGrid from "../reUsedComponents/PostGrid";
+import PostGrid from "../Post/PostGrid";
 import UserListModal from "../reUsedComponents/UserListModal";
 import { loadProfile, loadMoreProfilePosts } from "../../store/profile";
 import LoadMore from "../reUsedComponents/LoadMore";

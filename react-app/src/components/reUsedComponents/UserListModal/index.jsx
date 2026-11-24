@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { NavLink } from "react-router";
+import { Link } from "react-router";
+import Avatar from "../../ui/Avatar";
 import { Modal } from "../../../context/Modal";
 import usePagedList from "../../../hooks/usePagedList";
 import LoadMore from "../LoadMore";
@@ -10,17 +11,24 @@ const UserList = ({ url, dataKey, onClose }) => {
   const { items: users, status, errors, hasMore, loadingMore, loadMore } = usePagedList(url, dataKey);
 
   return (
-    <div className="user-liked-list">
-      {status === "loading" && <p>Loading...</p>}
-      {status === "error" && <p>{errors[0]}</p>}
-      {status === "ready" && users.length === 0 && <p>Nobody yet.</p>}
+    <div className="user-list">
+      {status === "loading" && <p className="user-list-note" role="status">Loading...</p>}
+      {status === "error" && <p className="user-list-note" role="alert">{errors[0]}</p>}
+      {status === "ready" && users.length === 0 && <p className="user-list-note">Nobody yet.</p>}
       <ul>
         {users.map((user) => (
           <li key={user.id}>
-            <NavLink to={`/${user.id}`} onClick={onClose}>
-              <img src={user.profilePicture} alt="" />
-              <span>{user.username}</span>
-            </NavLink>
+            <Link to={`/${user.id}`} onClick={onClose}>
+              <Avatar src={user.profilePicture} size={2.5} />
+              <span>
+                <strong>{user.username}</strong>
+                {(user.firstName || user.lastName) && (
+                  <span className="user-list-name">
+                    {user.firstName} {user.lastName}
+                  </span>
+                )}
+              </span>
+            </Link>
           </li>
         ))}
       </ul>
@@ -32,15 +40,15 @@ const UserList = ({ url, dataKey, onClose }) => {
 // A button (its content is `children`) that opens a list of users fetched from
 // `url`. Used for followers, following and the people who liked a post.
 //   dataKey: the key of the array in the JSON ("followers", "following", "user").
-const UserListModal = ({ url, dataKey, children, className }) => {
+const UserListModal = ({ url, dataKey, title = "People", children, className }) => {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className={className || "no-styling-actual"} onClick={() => setOpen(true)}>
+      <button type="button" className={className || "text-btn"} aria-haspopup="dialog" onClick={() => setOpen(true)}>
         {children}
       </button>
       {open && (
-        <Modal onClose={() => setOpen(false)}>
+        <Modal title={title} size="sm" onClose={() => setOpen(false)}>
           <UserList url={url} dataKey={dataKey} onClose={() => setOpen(false)} />
         </Modal>
       )}

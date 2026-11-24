@@ -862,8 +862,8 @@ Toolkit).
 Batch 3 = P20-P32 (performance, then UI/UX) plus four add-ons Tyler approved: Z1 (merge
 the overlapping Redux slices and load like state once), Z2 (drop redux-logger), Z3 (a
 proper not-found page for unknown profile ids) and Z4 (your own posts in your home feed).
-Commits are in this order: P20, P21, Z4, Z1, Z2, Z3, P22, P23, P24, P25, P26, then the
-look and feel (P27, P32, P28, P29, P30, P31), then the walkthrough update.
+Commits are in this order: P20, P21, Z4, P25, Z1, Z2, Z3, P22, P23, P24, P26, then the
+look and feel (P27, P32, P29, P28, P30, P31), then the walkthrough update.
 
 ## P20 — Lightweight user payloads
 - **Problem:** `User.to_dict()` loaded the full follower list, following list and like
@@ -1301,3 +1301,32 @@ the P32 section.
   login page, resize it to phone width and toggle your system dark mode, and tell me what looks
   off. Refreshed README screenshots are not included for the same reason. The rest of the app
   still uses its old layout until P28 (it already picks up the new fonts and colours).
+
+## P29 — Accessible dialogs and post detail
+- **Problem:** Every pop-up was a `div` with a click-catching backdrop: no focus trap, no
+  Escape, no labels, no focus return, background still scrollable. Post detail, the post
+  menu, caption/comment edit, delete confirm, new post, likers and sign-up each had their
+  own copy of the markup, and tiles were clickable images rather than buttons.
+- **What changed:**
+  - `context/Modal.jsx` is now one `Modal` component on the native `<dialog>` element
+    (`showModal()`): the browser provides the focus trap, Escape, inert background and
+    `::backdrop`. We add: backdrop click closes, focus returns to the opener, the page
+    scroll is locked (counter-based so stacked dialogs work), a titled header with a Close
+    button (`aria-labelledby`), sizes `sm`/`md`/`lg`. Phones get a bottom sheet (full
+    screen for `lg`), 40rem+ a centered card. The `ModalProvider` is gone.
+  - New `Post/` components: `PostTile` (a `<button>`; counts show on hover and keyboard
+    focus), `PostGrid` (responsive; `mosaic` makes every 7th Explore tile 2x2),
+    `PostDetail` (photo shown whole on a dark ground, author, caption, comments with Load
+    more, like button, likers list, labelled comment box), `PostOptions`,
+    `CommentOptions`, `NewPost` (choose a file, preview, caption with counter), `LikeButton`
+    (`aria-pressed`). Shared `ui/Avatar` and `ui/Time` (a `<time>` element).
+  - Deleted the old Edit*/Delete*/SinglePost/CommentContainer/PostForm/ImageUpload/
+    PostSettings/Logout files; the likers list and sign-up use the new `Modal`.
+- **Files:** `react-app/src/context/Modal.{jsx,css}`, `react-app/src/components/Post/*`,
+  `components/ui/*`, `UserListModal`, `LoginPage/SignUpModal.jsx`, plus the importers.
+- **How to verify:** open Explore, press Tab to a tile and Enter: the post opens; Tab stays
+  inside; Escape closes and focus returns to the tile. Like, comment, edit caption,
+  delete. jsdom check `p29.mjs` (13 checks) passes; `p22.mjs` was updated to the new markup.
+- **Things to watch:** jsdom has no modal `<dialog>`, so focus trap and Escape are only
+  checked as "close event unmounts"; I could not test them in a real browser. NavBar and
+  feed still use their old layout until P28 (they only got the new components).

@@ -3,7 +3,7 @@ import { AiOutlineHeart, AiFillHeart } from "react-icons/ai";
 import { FaUserCircle } from "react-icons/fa";
 import { NavLink } from "react-router";
 import { useSelector, useDispatch } from "react-redux";
-import PostSettingsModal from "./PostSettingsModal";
+import PostOptions from "../Post/PostOptions";
 import { loadHomeFeed, loadMoreFeed } from "../../store/feeds";
 import LoadMore from "../reUsedComponents/LoadMore";
 import { toggleLike } from "../../store/posts";
@@ -12,6 +12,7 @@ import formatDate from "../../utils/formatDate";
 const FeedPost = ({ postId }) => {
   const dispatch = useDispatch();
   const post = useSelector((state) => state.posts.byId[postId]);
+  const me = useSelector((state) => state.session.user);
   if (!post) return null;
 
   return (
@@ -23,7 +24,7 @@ const FeedPost = ({ postId }) => {
             <strong className="username-text">{post.users.username}</strong>
           </NavLink>
         </div>
-        <PostSettingsModal post={post} />
+        {me.id === post.userId && <PostOptions postId={post.id} />}
       </div>
       <div id="post-image" className="feed-child post-image-wrapper">
         <img

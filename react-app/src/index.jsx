@@ -8,7 +8,6 @@ import "./styles/base.css";
 import "./index.css";
 import App from "./App";
 import configureStore from "./store";
-import { ModalProvider } from "./context/Modal";
 
 const store = configureStore();
 
@@ -16,9 +15,7 @@ const store = configureStore();
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <Provider store={store}>
-      <ModalProvider>
-        <App />
-      </ModalProvider>
+      <App />
     </Provider>
   </React.StrictMode>
 );
