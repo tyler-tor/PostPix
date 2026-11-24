@@ -6,7 +6,7 @@
 .env.*
 !.env.example
 .envexample
-.flaskenv
+# .flaskenv is committed on purpose (FLASK_APP, FLASK_RUN_PORT; no secrets).
 *.pem
 *.key
 

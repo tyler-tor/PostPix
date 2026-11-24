@@ -27,8 +27,10 @@ Welcome to our Instagram Clone Group Project. This is a web app that allows you 
          - source .venv/bin/activate
          - flask db upgrade
          - flask seed all
-   5. Run flask run to start the backend in your root folder
-   6. cd into your react-app folder and run npm install to install dependencies and run npm start to run the frontend 
+   5. Run `flask run` in your root folder to start the backend on http://localhost:8000
+      (the port comes from `.flaskenv`)
+   6. cd into your react-app folder and run npm install to install dependencies and run npm start to run the frontend
+      (Vite proxies `/api` to http://localhost:8000; set `VITE_BACKEND_URL` in `react-app/.env.local` to change it)
    7. The application will start at http://localhost:3000/
 
 ## Running the API with Docker (optional)

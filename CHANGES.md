@@ -1850,3 +1850,44 @@ differ):
   `ui.css` without errors.
 - **Things to watch:** jsdom does not draw anything, so the look (spacing, wrapping on a 375 px
   phone) was written from the design tokens and not seen; please glance at it on your phone.
+
+## Q3 — Default dev ports (8000), env-driven Vite proxy, complete `.env.example` (add-on)
+- **Problem:** `flask run` defaulted to port 5000 (taken by AirPlay on macOS), so Tyler
+  hand-edited the Vite proxy to 8000 (`38ca306`), but nothing else agreed on a port, the proxy
+  target could only be changed by editing `vite.config.js`, and `.env.example` listed only a few
+  variables (and the now-removed `S3_KEY`/`S3_SECRET`).
+- **What changed:**
+  - **Port 8000 everywhere by default:** new committed **`.flaskenv`** with `FLASK_APP=app` and
+    `FLASK_RUN_PORT=8000` (python-dotenv loads it for every `flask` command; `.env` still wins).
+    It was listed in `.gitignore` (from P2); that line is replaced by a comment, because
+    `.flaskenv` is meant for non-secret CLI settings. gunicorn already defaults to
+    `127.0.0.1:8000` locally and `0.0.0.0:$PORT` (8000) in Docker (P33); compose publishes 8000
+    (P34).
+  - **Vite proxy from the environment:** `vite.config.js` reads `VITE_BACKEND_URL` (from
+    `react-app/.env.local`, `react-app/.env` or the shell) with the default
+    `http://localhost:8000`. It is only used by the dev server's proxy, so nothing ends up in
+    the browser bundle.
+  - **`.env.example` rewritten** with every variable the app reads, grouped and commented:
+    Flask, Database (incl. `DATABASE_PASSWORD`, `DATABASE_SSLMODE`, pool settings), Images/S3
+    (`S3_BUCKET`, `AWS_REGION`, `AWS_PROFILE`, `MEDIA_BASE_URL`), Proxy/security
+    (`TRUSTED_PROXY_HOPS[_FOR]`, `HSTS_SECONDS`, `SERVE_FRONTEND`), Server (`PORT`, `BIND`,
+    gunicorn settings, `RUN_MIGRATIONS`, `SEED_ON_START`), local ports (`FLASK_RUN_PORT`,
+    `VITE_BACKEND_URL`), tests (`TEST_DATABASE_URL`), and a commented **Production** reference
+    block. Placeholders only.
+  - README: steps 5-6 mention port 8000 and `VITE_BACKEND_URL`.
+- **Files:** new `.flaskenv`, `.gitignore`, `react-app/vite.config.js`, `.env.example`,
+  `README.md`.
+- **How to verify:** `flask run` prints `Running on http://127.0.0.1:8000`; `npm run dev` and open
+  http://localhost:3000, log in (the proxy reaches 8000). With
+  `VITE_BACKEND_URL=http://localhost:8001` in `react-app/.env.local` and
+  `PORT=8001 gunicorn -c gunicorn.conf.py wsgi:app`, the dev site talks to 8001 instead. Checked
+  here in the scratch copy: `flask run` on 8000 -> `/api/health` ok; Vite with the default ->
+  `localhost:3000/api/health` ok; Vite with `VITE_BACKEND_URL=http://localhost:8001` and gunicorn
+  on 8001 -> ok; Vite serves `/` and `src/index.jsx` (200) with no errors in its log.
+- **Things to watch:**
+  - **Your local `.env`:** if it sets `FLASK_RUN_PORT` or `FLASK_APP`, those win over
+    `.flaskenv` (that is fine). Remove the obsolete `S3_KEY` / `S3_SECRET` lines (P37) and compare
+    the rest with the new `.env.example`. The old untracked `.envexample` file (Heroku era) can be
+    deleted.
+  - If something else on your Mac already uses 8000, set `FLASK_RUN_PORT` in `.env` and
+    `VITE_BACKEND_URL` in `react-app/.env.local` to the same new port.
