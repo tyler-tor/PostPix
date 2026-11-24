@@ -1,6 +1,6 @@
 from flask import Blueprint
 from flask_login import current_user, login_required
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.orm import selectinload
 from app.models import db, Post
 from app.models.user import follows
@@ -11,7 +11,8 @@ me_routes = Blueprint('me', __name__)
 @me_routes.route('/following/posts')
 @login_required
 def me_following_posts():
-    """Home feed: posts from everyone the current user follows, newest first.
+    """Home feed: posts from everyone the current user follows, plus their own,
+    newest first.
 
     One query for the posts (plus one batched query for their authors via
     selectinload), instead of 1 query per followed user, and the result is
@@ -21,7 +22,7 @@ def me_following_posts():
         follows.c.follower_id == current_user.id)
     posts = db.session.scalars(
         select(Post)
-        .where(Post.user_id.in_(followed_ids))
+        .where(or_(Post.user_id.in_(followed_ids), Post.user_id == current_user.id))
         .options(selectinload(Post.users))
         .order_by(Post.created_at.desc(), Post.id.desc())
     ).all()

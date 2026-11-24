@@ -90,7 +90,7 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 
 ## Open questions for Tyler
 
-1. **Home feed (P10):** should your own posts appear in your home feed (Instagram does)? Currently only followed users' posts are shown, same as before. It's a one-line change.
+1. **Home feed (P10):** should your own posts appear in your home feed? **Answered in Batch 3: yes, done in Z4.**
 2. **Branding (P11):** OK with the teal "postpix" wordmark and accent, or do you have preferred colours/logo for P32?
 3. **Repo name:** rename the GitHub repo from `Instagram-Group-Project` to something like `postpix` (GitHub redirects old URLs)? Avoids the trademark name in your portfolio URL.
 4. **Deep links (found during P11):** refreshing `/explore` on the Flask-served build returns 404 (pre-existing). Fix in P31/P33, or earlier as a small separate change? **Answered in Batch 2: fixed in P18.**
@@ -934,3 +934,18 @@ look and feel (P27, P32, P28, P29, P30, P31), then the walkthrough update.
   on Postgres in P34 (generated SQL only was reviewed; no Postgres is available here).
   On SQLite `ON DELETE CASCADE` only acts when `PRAGMA foreign_keys=ON`; the ORM still
   removes follow rows itself when a user is deleted, so behaviour is the same.
+
+## Z4 — Your own posts in your home feed (add-on)
+- **Problem:** The home feed (`GET /api/me/following/posts`) only returned posts by people
+  you follow, so a new user, or anyone who just posted, saw an empty feed and no sign that
+  their post worked. This was open question 1 from Batch 1; Tyler decided yes.
+- **What changed:** the feed query now matches `user_id IN (followed) OR user_id = me`.
+  Still one posts query (plus one batched authors query), still newest first with the
+  `id` tie-break. The route keeps its URL and response shape.
+- **Files:** `app/api/me_routes.py`.
+- **How to verify:** test-client script (5 checks): own posts present, nothing from people
+  you do not follow, still sorted newest first, 3 queries or fewer, and a post created
+  during the test is first in the feed. The P10 script was updated to expect your own
+  posts too.
+- **Things to watch:** the route name still says `following`; renaming it would break the
+  frontend for no gain. P22 will paginate this endpoint.
