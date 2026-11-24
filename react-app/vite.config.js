@@ -10,7 +10,7 @@ export default defineConfig({
     // Send API calls to Flask during development. The browser only ever talks
     // to localhost:3000, so cookies (session + csrf_token) stay same-origin.
     proxy: {
-      "/api": "http://localhost:5000",
+      "/api": "http://localhost:8000",
     },
   },
   build: {
