@@ -5,12 +5,14 @@ Batch 1, items P2-P11, Batch 2, items P0 and P12-P19, and Batch 3, items P20-P32
 Z1-Z4 add-ons: safe seeding, app factory, Python 3.12 / Flask 3 / SQLAlchemy 2, a clean
 migration baseline, Vite, React 19, React Router 7, Redux Toolkit, then database indexes,
 cursor pagination, server-side search, resized WebP images, a merged store, and a new
-design system with accessible dialogs). It is written for someone who knows Python and React basics but has
+design system with accessible dialogs; then the app side of Batch 4: an API-only Docker image,
+docker compose, S3 through the instance role, proxy and security settings for CloudFront, and a
+nightly demo reset). It is written for someone who knows Python and React basics but has
 not looked at this project in a while. Every file, function and endpoint named here exists in
 the code; if you find one that does not, the code changed after this was written.
 
 PostPix started in 2022 as a three-person team project (Tyler, Alan De Leon, Theo Fandrich)
-and is now maintained by Tyler. See `CHANGES.md` for what Batches 1 to 3 changed and
+and is now maintained by Tyler. See `CHANGES.md` for what Batches 1 to 4 changed and
 `MODERNIZATION_PLAN.md` for what is planned.
 
 ## Table of contents
@@ -24,7 +26,7 @@ and is now maintained by Tyler. See `CHANGES.md` for what Batches 1 to 3 changed
 7. [Frontend tour](#7-frontend-tour)
 8. [Three end-to-end traces](#8-three-end-to-end-traces)
 9. [Where do I look when...](#9-where-do-i-look-when)
-10. [What changed in Batches 1 to 3 and what is coming](#10-what-changed-in-batches-1-to-3-and-what-is-coming)
+10. [What changed in Batches 1 to 4 and what is coming](#10-what-changed-in-batches-1-to-4-and-what-is-coming)
 11. [Interview prep](#11-interview-prep)
 12. [Glossary](#12-glossary)
 
@@ -49,9 +51,9 @@ PostPix is a photo-sharing web app. You sign up (optionally with a profile pictu
 |---|---|---|
 | Frontend | React 19, React Router 7, Redux Toolkit 2 (react-redux 9), Vite 8, Node 22 | `react-app/` |
 | Backend | Python 3.12, Flask 3.1, Flask-SQLAlchemy 3.1 (SQLAlchemy 2.1), Flask-Migrate 4 (Alembic), Flask-Login, Flask-WTF | `app/` |
-| Database | SQLite locally (`instance/dev.db`), Postgres (psycopg 3) in production | `migrations/` |
-| Images | Amazon S3 via `boto3`, validated with Pillow | `app/s3_helpers.py` |
-| Deploy | None right now: the Heroku workflow was deleted (P0); Docker + AWS come in Batch 4 (P33-P41). The old `Dockerfile` still exists | `Dockerfile` |
+| Database | SQLite locally (`instance/dev.db`), AWS RDS PostgreSQL (psycopg 3, SSL) in production | `migrations/` |
+| Images | Amazon S3 via `boto3` (instance role, no keys), validated with Pillow, served by CloudFront under `MEDIA_BASE_URL` | `app/s3_helpers.py`, `app/media.py` |
+| Deploy | API-only Docker image (`Dockerfile`, Batch 4); local `docker-compose.yml`. Production (shared EC2 + Caddy, S3 + CloudFront, RDS) is built by a separate infra repo; see section 5.7 | `Dockerfile`, `docker/` |
 
 **How a request flows**
 
@@ -85,13 +87,18 @@ re-renders.
 Skips `node_modules/`, `react-app/build/`, lockfiles and `__pycache__/`.
 
 ```text
-Instagram-Group-Project/
-├── .env.example              Template for your local .env (the only env template; copy it)
+postpix/
+├── .env.example              Every environment variable, grouped and commented (copy to .env)
 ├── .envexample               Git-ignored leftover duplicate (P2 stopped tracking it); safe to delete
+├── .flaskenv                 Committed, no secrets: FLASK_APP=app, FLASK_RUN_PORT=8000 (Q3)
 ├── .python-version           "3.12" (read by pyenv / uv)
-├── CHANGES.md                What Batches 1 to 3 changed, item by item, and how to verify it
+├── CHANGES.md                What Batches 1 to 4 changed, item by item, and how to verify it
 ├── MODERNIZATION_PLAN.md     The 48-item plan (P1-P48)
-├── Dockerfile                Old Heroku-style image, minimally updated (python:3.12-slim, gunicorn wsgi:app); replaced in P33
+├── Dockerfile                API-only two-stage image: python:3.12-slim, uid 10001, HEALTHCHECK, gunicorn (P33)
+├── .dockerignore             Allowlist of what goes into the image (app/, migrations/, ...)
+├── docker/                   entrypoint.sh (optional migrate/seed, then exec) and healthcheck.py
+├── docker-compose.yml        Local dev: api (SQLite) or api-pg + db (postgres profile) (P34)
+├── pytest.ini, tests/        pytest suite (python -m pytest): Batch 4 tests for config, media, proxy, demo reset
 ├── requirements.in           Direct backend dependencies (edit this one)
 ├── requirements.txt          Fully pinned list generated from requirements.in (uv pip compile)
 ├── requirements-dev.in/.txt  Dev tools: pytest, ruff, moto, pip-audit
@@ -100,9 +107,11 @@ Instagram-Group-Project/
 ├── README.md                 Original team README (install steps updated; rewrite planned in P46)
 ├── instance/                 Git-ignored; holds the local SQLite file dev.db
 ├── app/                      Flask backend
-│   ├── __init__.py           create_app(): config, extensions, blueprints, CSRF cookie, /api/health, React serving
-│   ├── config.py             Config / DevConfig / TestConfig / ProdConfig + get_config()
+│   ├── __init__.py           create_app(): config, ProxyFix, extensions, blueprints, CSRF cookie, security headers,
+│   │                         /api/health + /api/health/db, React serving (development only)
+│   ├── config.py             Config / DevConfig / TestConfig / ProdConfig + get_config() (+ Postgres pool/SSL options)
 │   ├── errors.py             JSON error handlers ({"errors": [...]}) for every /api error
+│   ├── media.py              Image URLs: MEDIA_BASE_URL + key; seed images from seeds/media_manifest.json
 │   ├── s3_helpers.py         Image validation, resize to WebP (main + thumbnail), upload to S3 with long cache headers
 │   ├── api/                  Blueprints = groups of routes
 │   │   ├── auth_routes.py    /api/auth: restore session, login, logout, signup
@@ -123,8 +132,10 @@ Instagram-Group-Project/
 │   │   ├── posts.py          Post
 │   │   ├── comments.py       Comment
 │   │   └── postLike.py       PostLike (one row per like)
-│   └── seeds/                `flask seed all [--reset]` / `flask seed undo` demo data
+│   └── seeds/                `flask seed all [--reset]` / `flask seed undo` demo data, `flask demo reset`
 │       ├── __init__.py       Seed CLI group: seeds only an empty DB; reset/undo refuse in production
+│       ├── demo.py           `flask demo reset [--dry-run]`: put only the demo user's data back (P41)
+│       ├── media_manifest.json  Seed image -> S3 key under seed/ (+ original URL as local fallback)
 │       ├── users.py          15 users (+ who follows whom); returns {seed number: User}
 │       ├── posts.py          50 posts; returns {seed number: Post}
 │       ├── comments.py       80 comments
@@ -135,7 +146,7 @@ Instagram-Group-Project/
 │                             0004_post_image_variants (see section 5.5)
 └── react-app/                React frontend (Vite)
     ├── package.json          Deps + scripts: dev / start (vite), build (vite build), preview
-    ├── vite.config.js        React plugin, dev server :3000, proxy /api -> :5000, build -> build/
+    ├── vite.config.js        React plugin, dev server :3000, proxy /api -> VITE_BACKEND_URL (default :8000), build -> build/
     ├── index.html            HTML shell: viewport, theme colour, description, Open Graph tags
     ├── public/               favicon.svg/.ico, apple-touch-icon, icon-192/512, maskable icon, manifest.webmanifest
     ├── scripts/check_contrast.py  Reads tokens.css and checks WCAG AA contrast (light + dark)
@@ -156,7 +167,7 @@ Instagram-Group-Project/
             ├── ExplorePage/  Mosaic grid of every post (paginated)
             ├── UserProfile/  Profile header (stats, follow button) + post grid
             ├── Post/         PostTile, PostGrid, PostDetail (dialog), LikeButton, PostOptions, CommentOptions, NewPost
-            ├── ui/           Avatar, Time, StatusMessage (empty/error), Skeletons, Toaster
+            ├── ui/           Avatar, Time, StatusMessage (empty/error), Skeletons, Toaster, DemoNotice
             ├── reUsedComponents/ LoadMore, UserListModal (followers/following/likers), ProtectedRoute
             └── NotFound/     "Page not found" / "Profile not found"
 ```
@@ -166,7 +177,9 @@ Instagram-Group-Project/
 ## 3. How to run it locally
 
 You need **Python 3.12** and **Node 22.12+** (Node 22 LTS), and two terminals: one for Flask
-(port 5000) and one for the Vite dev server (port 3000). Vite forwards `/api/...` calls to Flask.
+(port **8000**, set in `.flaskenv`) and one for the Vite dev server (port 3000). Vite forwards
+`/api/...` calls to Flask. (Prefer Docker for the backend? See "Backend in Docker" at the end of
+this section.)
 
 1. **Create your `.env`** in the project root:
    ```bash
@@ -181,9 +194,11 @@ You need **Python 3.12** and **Node 22.12+** (Node 22 LTS), and two terminals: o
    `FLASK_ENV=development` (picks `DevConfig`), `FLASK_DEBUG=1` (Flask 3 no longer turns on
    the debugger from `FLASK_ENV`) and `DATABASE_URL=sqlite:///dev.db`, which Flask-SQLAlchemy 3
    puts in **`instance/dev.db`** (not `app/dev.db` any more).
-3. **S3 (optional).** If you are not testing uploads, set `S3_BUCKET=` to empty. Then uploads
+3. **S3 (optional).** If you are not testing uploads, leave `S3_BUCKET=` empty. Then uploads
    fail cleanly with "S3 is not configured" instead of trying a fake bucket. Everything else
-   works without S3 (seed images are hosted elsewhere). The frontend needs no env vars.
+   works without S3: with `MEDIA_BASE_URL` empty the seed images use their original URLs. To
+   test uploads, set `S3_BUCKET`, `AWS_REGION` and `AWS_PROFILE` (after `aws sso login`); there
+   are no access-key variables any more (P37). The frontend needs no env vars.
 4. **Create a virtualenv and install backend packages** (pinned in `requirements.txt`,
    generated from `requirements.in`):
    ```bash
@@ -211,7 +226,7 @@ You need **Python 3.12** and **Node 22.12+** (Node 22 LTS), and two terminals: o
    everything. Both refuse to run when `FLASK_ENV=production`.
 7. **Start Flask:**
    ```bash
-   flask run        # http://localhost:5000  (curl localhost:5000/api/health -> {"status":"ok"})
+   flask run        # http://localhost:8000  (curl localhost:8000/api/health -> {"status":"ok"})
    ```
 8. **Start React** in a second terminal:
    ```bash
@@ -220,25 +235,40 @@ You need **Python 3.12** and **Node 22.12+** (Node 22 LTS), and two terminals: o
    npm run dev      # http://localhost:3000   (npm start does the same)
    ```
    No `NODE_OPTIONS=--openssl-legacy-provider` any more (that was for Create React App).
-9. **How the proxy works.** `react-app/vite.config.js` has `server.proxy: {"/api":
-   "http://localhost:5000"}`. The browser only talks to `localhost:3000`; Vite forwards
-   `/api/...` to Flask. Because the browser sees one origin, cookies (session + CSRF) just work
-   and no CORS is needed.
+9. **How the proxy works.** `react-app/vite.config.js` sends `/api` to `VITE_BACKEND_URL`
+   (default `http://localhost:8000`; override it in `react-app/.env.local`). The browser only
+   talks to `localhost:3000`; Vite forwards `/api/...` to Flask. Because the browser sees one
+   origin, cookies (session + CSRF) just work and no CORS is needed. Production uses the same
+   idea: CloudFront sends `/api/*` to the server, so the site and the API share one origin.
 10. **Log in.** Click **Demo Login** (it calls `login("demo@aa.io", "password")` in
-    `LoginForm.jsx`). Every seeded user has password `password`, for example
-    `marnie@aa.io`, `bobbie@aa.io`, `theo@aa.io`, `awd@aa.io` (see `app/seeds/users.py`).
+    `LoginForm.jsx`); a notice under the top bar says the demo data resets nightly (Q2). Every
+    seeded user has password `password`, for example `marnie@aa.io`, `bobbie@aa.io`,
+    `theo@aa.io`, `awd@aa.io` (see `app/seeds/users.py`). `flask demo reset` puts the demo
+    account back to the seed data at any time.
 
 **Image uploads need Pillow's WebP support** (it is in the pinned wheels). New posts store a
 main image (max 1080x1350 WebP) and a 400 px thumbnail; old posts without a thumbnail fall
 back to the full image.
 
 **Production-style run:** `npm run build` inside `react-app/` (output in `react-app/build/`),
-then only Flask: `flask run`, or like production `gunicorn -c gunicorn.conf.py wsgi:app` (`WEB_CONCURRENCY`, `GUNICORN_THREADS`, `PORT` override the defaults). Flask serves the build
-itself, and since P18 refreshing a deep link like `/explore` works (see section 5.1).
+then only Flask: `flask run`, or `gunicorn -c gunicorn.conf.py wsgi:app` (listens on
+`127.0.0.1:8000`; `WEB_CONCURRENCY`, `GUNICORN_THREADS`, `PORT`, `BIND` override the defaults).
+In development Flask serves the build itself (`SERVE_FRONTEND`, on by default outside
+production), and since P18 refreshing a deep link like `/explore` works (see section 5.1). In
+production Flask is API-only: the build goes to S3 + CloudFront.
 
-**Deploy rule (P0):** a deploy runs `flask db upgrade && flask seed all` (safe every time).
-Never run `--reset`/`undo` against production, never `docker compose down -v` there (it deletes
-the database volume), and back up before every production migration.
+**Backend in Docker (P34).** `docker compose up --build` runs the API image on
+http://localhost:8000 with SQLite in a named volume; it applies the migrations and seeds an empty
+database by itself, and reloads when you edit `app/`. `docker compose up --build api-pg` runs the
+same on PostgreSQL 17 (closer to production). Run one of the two, then `npm run dev` as usual.
+`docker compose exec api flask demo reset` / `flask seed all --reset` work inside it.
+`docker compose down -v` deletes the local databases.
+
+**Deploy rule (P0, updated for RDS):** a deploy runs `flask db upgrade && flask seed all` (safe
+every time). Never run `--reset`/`undo` against production, and take an RDS snapshot before every
+production migration. (With RDS there is no database volume on the server any more, but
+`docker compose down -v` still deletes any other named volumes.) `flask demo reset` **is**
+allowed in production; it only touches the demo account.
 
 ---
 
@@ -371,7 +401,7 @@ fully configured app. Nothing is built at import time. `flask ...` commands find
    - `@login.unauthorized_handler unauthorized()` - when `@login_required` fails, return
      `{"errors": ["Unauthorized"]}, 401` (JSON, not a redirect).
 2. **Creates the app:** `Flask(__name__, static_folder=None)` (Flask's own static route is off;
-   `react_root` serves the React build, step 9) and sets `FRONTEND_DIST` (default
+   `react_root` serves the React build in development, step 9) and sets `FRONTEND_DIST` (default
    `react-app/build`).
 3. **Config:** `app.config.from_object(get_config(config_name))` (from `app/config.py`). The
    name is the argument or `FLASK_ENV` (`development` default, `testing`, `production`):
@@ -386,25 +416,41 @@ fully configured app. Nothing is built at import time. `flask ...` commands find
    - `ProdConfig`: `IS_PRODUCTION = True`, `Secure` cookies, and **raises at startup** if
      `SECRET_KEY` or `DATABASE_URL` is missing.
    - Postgres URLs (`postgres://`, `postgresql://`) are rewritten to `postgresql+psycopg://`
-     (psycopg 3 driver).
+     (psycopg 3 driver). For Postgres, `get_config()` also adds engine options: `pool_pre_ping`,
+     `pool_recycle`, a small pool (5 + 2 per worker), `sslmode` from `DATABASE_SSLMODE`, and
+     `DATABASE_PASSWORD` is escaped into the URL (P34).
+   - Batch 4 settings (all from env): `SERVE_FRONTEND` (default off in production), `S3_BUCKET`,
+     `AWS_REGION` (default `us-east-2`), `MEDIA_BASE_URL`, `TRUSTED_PROXY_HOPS` /
+     `TRUSTED_PROXY_HOPS_FOR` (default 1 in production, else 0), `HSTS_SECONDS`.
+3b. **ProxyFix (P38).** If the proxy hop settings are not 0, `app.wsgi_app` is wrapped in
+   Werkzeug's `ProxyFix`, so behind CloudFront + Caddy `request.scheme` is `https`,
+   `request.host` is `postpix.tylertorrero.dev` and `request.remote_addr` is the visitor. This is
+   required: on HTTPS, Flask-WTF's CSRF check compares the `Referer` with
+   `https://<request.host>/`.
 4. **Extensions attached:** `db.init_app(app)`, `migrate.init_app(app, db,
    render_as_batch=True)` (adds `flask db ...`; batch mode lets future migrations alter tables
    on SQLite), `login.init_app(app)`, `csrf.init_app(app)` (checks a CSRF token on **every**
    POST/PUT/PATCH/DELETE; flask-cors was removed in P9, same-origin needs no CORS).
 5. **Blueprints.** Imported inside the factory and mounted under `/api/users`, `/api/auth`,
    `/api/posts`, `/api/me`, `/api/comments`, `/api/img`.
-6. **Seed CLI.** `app.cli.add_command(seed_commands)` adds `flask seed all [--reset]|undo`.
+6. **CLI.** `app.cli.add_command(seed_commands)` adds `flask seed all [--reset]|undo`, and
+   `demo_commands` adds `flask demo reset [--dry-run]` (P41, section 5.5).
 7. **Error handlers.** `register_error_handlers(app)` from `app/errors.py`:
    - `handle_http_exception` - for `/api/...` paths turns any `HTTPException` (404, 405, 413...)
      into `{"errors": [description]}` with the right status. Non-API paths keep Flask's default.
    - `handle_unexpected_exception` - logs the traceback, returns a generic
      `{"errors": ["Internal server error"]}, 500`. In debug/testing it re-raises so you see the traceback.
    - Plus `handle_csrf_error`: `{"errors": ["CSRF check failed: ..."]}, 400`.
-8. **`inject_csrf_token` (after every response)** sets the `csrf_token` cookie to
-   `generate_csrf()`, `SameSite=Lax`, `httponly=False` so JavaScript can read it, `Secure` when
-   `IS_PRODUCTION`. **`GET /api/health`** returns `{"status": "ok"}` (no login, no database) for
-   Docker / load-balancer health checks.
-9. **Serving React.** `react_root(path)` is mapped to `/` and `/<path:path>`:
+8. **`inject_csrf_token` (after every response except `/api/health*`)** sets the `csrf_token`
+   cookie to `generate_csrf()`, `SameSite=Lax`, `httponly=False` so JavaScript can read it,
+   `Secure` when `IS_PRODUCTION`. **`security_headers`** adds `X-Content-Type-Options: nosniff`,
+   `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, on `/api/*` a
+   `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` and
+   `Cross-Origin-Resource-Policy: same-origin`, and HSTS in production. **`GET /api/health`**
+   returns `{"status": "ok"}` (no login, no database, no cookies) for the Docker health check;
+   **`GET /api/health/db`** runs `SELECT 1` and returns 200 or 503 (for monitoring).
+9. **Serving React (only when `SERVE_FRONTEND` is on, i.e. development).**
+   `_register_frontend_routes()` maps `react_root(path)` to `/` and `/<path:path>`:
    - `api/...` paths that matched no route -> JSON 404;
    - a real file in the build (`/assets/index-abc123.js`, `/favicon.ico`) -> sent with
      `send_from_directory` (which refuses `..` tricks);
@@ -443,7 +489,9 @@ the current user owns the row (403 if not). All write methods also need the CSRF
 and `db.session.execute(update(Post).where(...).values(...))`. There is no `Model.query` left.
 All `createdAt` / `updatedAt` values are ISO-8601 strings.
 
-**`GET /api/health`** (in `app/__init__.py`): `{"status": "ok"}`, no login.
+**`GET /api/health`** (in `app/__init__.py`): `{"status": "ok"}`, no login, no database, no
+cookies. **`GET /api/health/db`**: `{"status": "ok", "database": "ok"}` or 503
+`{"status": "error", "database": "unreachable"}`.
 
 **Pagination (P22).** Every list endpoint returns at most `limit` items (default 12 posts, 20
 comments or people; max 50) and a `nextCursor` (null when finished). Send it back as `before=`
@@ -454,7 +502,7 @@ or `after=<id>` (people lists, likers). A bad cursor is a 400. See section 5.6.
 
 | Method | Path | Login | Owner | Handler | Models | Response |
 |---|---|---|---|---|---|---|
-| GET | `/api/auth/` | no | - | `authenticate` | User | `to_self()` (no posts any more); if logged out **200** with `{"errors": ["Unauthorized"]}` |
+| GET | `/api/auth/` | no | - | `authenticate` | User | `to_self()` (no posts; includes `email` and `isDemo`); if logged out **200** with `{"errors": ["Unauthorized"]}` |
 | POST | `/api/auth/login` | no | - | `login` | User | `to_self()`; 400 `{"errors": [...]}` |
 | POST | `/api/auth/logout` | no | - | `logout` | - | `{"message": "User logged out"}` |
 | POST | `/api/auth/signup` | no | - | `sign_up` | User (+S3) | multipart in (avatar is resized to 320 px); `to_self()`; 400 on form errors |
@@ -468,7 +516,7 @@ or `after=<id>` (people lists, likers). A bad cursor is a 400. See section 5.6.
 | GET | `/api/users/search?q=&limit=` | yes | - | `search_users` | User | `{"users": [summary]}`: usernames starting with `q` (case-insensitive, range scan on `lower(username)`), max 10 |
 | GET | `/api/users/<id>` | yes | - | `user` | User | `to_public()` (counts + `isFollowedByMe`), **no posts**; 404 |
 | GET | `/api/users/<id>/posts` | yes | - | `user_posts` | Post | `{"Posts": [...], "nextCursor"}` newest first; 404 |
-| DELETE | `/api/users/<id>` | yes | self only | `delete_user` | User (cascades) | `{"message": "Success"}`; 403. No frontend button calls this |
+| DELETE | `/api/users/<id>` | yes | self only | `delete_user` | User (cascades) | `{"message": "Success"}`; 403 (also for the demo account, P41). No frontend button calls this |
 | GET | `/api/users/<id>/followers` | yes | - | `get_followers` | User, follows | `{"followers": [summary], "nextCursor"}` |
 | GET | `/api/users/<id>/following` | yes | - | `get_following` | User, follows | `{"following": [summary], "nextCursor"}` |
 | GET | `/api/users/<id>/notfollowing?limit=` | yes | - | `get_not_following` | User | `{"users": [to_public]}`: people `<id>` does not follow, one `NOT IN` query, default 10 |
@@ -511,7 +559,7 @@ authors (`selectinload`), and one grouped query each for `likedByMe` and `commen
 | Method | Path | Login | Owner | Handler | Models | Response |
 |---|---|---|---|---|---|---|
 | GET | `/api/me/following/posts` | yes | - | `me_following_posts` | Post, follows | `{"Posts": [post], "nextCursor"}`: people you follow **and your own posts**, newest first, one query (Z4) |
-| POST | `/api/img/upload` | yes | - | `upload_image` | (S3) | multipart field `image` (+ optional `kind=avatar`); `{"url", "thumbUrl", "width", "height"}`; 400 / 413 / 502 |
+| POST | `/api/img/upload` | yes | - | `upload_image` | (S3) | multipart field `image` (+ optional `kind=avatar`); `{"url", "thumbUrl", "width", "height"}`; 400 / 413 / 502. Demo uploads get the S3 tag `postpix-demo=true` |
 
 How the home feed query works (P10, Z4): `Post.user_id IN (SELECT followed_id FROM follows WHERE follower_id = me) OR Post.user_id = me`, ordered by `created_at DESC, id DESC`, cut at `limit + 1` rows to build `nextCursor`; it uses `ix_posts_created_at_id`.
 
@@ -522,10 +570,13 @@ below 0) and `db.session.refresh(post)` so the response has the new count. Both 
 
 ### 5.4 `app/s3_helpers.py`
 
-The S3 client is created at import time from `S3_KEY`/`S3_SECRET` (if empty, boto3 falls back
-to its normal credential chain, e.g. an EC2 role later). One public function does everything:
+Since P37 there are **no access keys**: `s3_client()` creates one boto3 client per app on first
+use with only `region_name=AWS_REGION`, and boto3's default credential chain finds the EC2
+instance role in production or your `AWS_PROFILE` locally. `public_url(key)` is
+`MEDIA_BASE_URL + "/" + key` (via `app/media.py`), or the bucket's regional S3 URL when
+`MEDIA_BASE_URL` is empty. One public function does everything:
 
-`process_and_upload_image(file, kind="post")` (P24):
+`process_and_upload_image(file, kind="post", demo=False)` (P24, P37, P41):
 1. no file -> 400 "image required"; `allowed_file()` extension check (png, jpg, jpeg, gif, webp) -> 400;
 2. `validate_image(file)` - Pillow opens and `verify()`s the stream; the **detected** format
    decides, not the file name; huge pixel counts are refused (`MAX_IMAGE_PIXELS = 50_000_000`);
@@ -534,8 +585,10 @@ to its normal credential chain, e.g. an EC2 role later). One public function doe
    thumbnail 400 px (quality 78); an avatar is 320 px. Animated GIFs keep their first frame;
 4. `get_unique_filename()` - `uploads/<uuid4 hex>.webp` (and `-thumb.webp`);
 5. `upload_file_to_s3(...)` - no ACL, `CacheControl: public, max-age=31536000, immutable`
-   (file names never repeat, so browsers and CloudFront may keep them for a year). Returns
-   `{url, thumbUrl, width, height}`; missing bucket or AWS errors become **502**.
+   (file names never repeat, so browsers and CloudFront may keep them for a year); for the demo
+   account also the object tag `postpix-demo=true`, so an S3 lifecycle rule can expire those
+   files after the nightly reset. Returns `{url, thumbUrl, width, height}`; missing bucket or AWS
+   errors become **502** (the real error is in the log).
 
 Used by `upload_image` (`/api/img/upload`) and by `sign_up` (profile picture, `kind="avatar"`).
 
@@ -572,12 +625,33 @@ Seeding runs `seed_users()` (15 users, all password `password`, follow graph via
 `update()` + correlated `count()` subquery). The files refer to `users[4].id` / `posts[12].id`
 (the seed numbers in the `#1`..`#15` comments and `post1`..`post50`), never hard-coded database
 ids, so seeding works whatever ids the database hands out. Deletes use SQLAlchemy `delete()`
-statements; there is no raw SQL and no `TRUNCATE`. Seed profile pictures point at an S3 bucket
-owned by someone else (`capstone-strava-clone-aktiv`); P37 plans to copy them.
+statements; there is no raw SQL and no `TRUNCATE`.
 
-> **Deploy rule.** Deploys run `flask db upgrade && flask seed all`. Reset/undo only locally.
-> Never `docker compose down -v` on the server (deletes the Postgres volume). Back up
-> (`pg_dump`) before every production migration. The old Heroku workflow that ran
+**Seed images (P37).** `users.py` and `posts.py` call `seed_avatar_url(n)` / `seed_post_url(n)`
+from `app/media.py`, which look the number up in `app/seeds/media_manifest.json`: each entry has
+an S3 `key` under `seed/` (e.g. `seed/posts/post-07.png`) and the original hot-linked `source`.
+With `MEDIA_BASE_URL` set the URL is `MEDIA_BASE_URL/key` (production, after the infra repo has
+uploaded the "media pack"); without it the `source` URL (local development, unchanged look). The
+default avatar for new users works the same way (`default_avatar_url()`).
+
+**Demo reset (P41, `app/seeds/demo.py`).** `flask demo reset [--dry-run]` restores only the demo
+user's data: the demo user row (recreated if deleted), exactly the seed posts with their seed
+comments and likes, the demo user's comments and likes elsewhere, and who they follow / who
+follows them. It learns the seed state by running the normal seed functions in a throwaway
+in-memory SQLite database (`seed_snapshot()`) and comparing by natural keys (emails, captions,
+comment text), then fixes the live database in one transaction (`reset_demo()`), recounting the
+like counters it affected. Other users' data is untouched; a second run reports "already matches
+the seed data". It is allowed in production and meant for a nightly cron / systemd timer on the
+EC2 (exact lines in `CHANGES.md`, P41). It refuses an empty database.
+
+| Command | What it does | Production |
+|---|---|---|
+| `flask demo reset` | Puts the demo account back to the seed data (only the demo user's data) | allowed (nightly job) |
+| `flask demo reset --dry-run` | Prints what would change, saves nothing | allowed |
+
+> **Deploy rule.** Deploys run `flask db upgrade && flask seed all`. `seed all --reset` / `seed
+> undo` only locally. Take an RDS snapshot before every production migration (the Docker image
+> runs migrations only when `RUN_MIGRATIONS=1`, so the deploy decides when). The old Heroku workflow that ran
 > `seed undo` + `seed all` on every push to `main` (wiping all data) was **deleted in P0**.
 
 **Migrations (`migrations/versions/`)**: `0001_baseline_schema.py` (revision `0001_baseline`) creates users, follows, posts, comments and post_likes with named constraints, `DEFAULT now()` timestamps and the unique like rule `uq_post_likes_user_post`. Batch 3 stacked three small migrations on it: `0002_indexes` (indexes + `ON DELETE CASCADE` on `follows`), `0003_user_search` (`lower(username)` index) and `0004_post_images` (thumbnail and size columns, nullable so old rows stay valid). Each has a `downgrade()` that was tested. They use `render_as_batch` so SQLite can alter tables; the `lower()` index is an expression index, for which `flask db check` prints a harmless SQLite reflection warning.
@@ -585,6 +659,38 @@ owned by someone else (`capstone-strava-clone-aktiv`); P37 plans to copy them.
 To change the schema: edit a model, run `flask db migrate -m "message"`, **read** the generated
 file (it sits on top of the newest revision), then `flask db upgrade`. `flask db check` tells you if
 models and migrations disagree. Never edit an existing migration once a real database uses it; add a new one.
+
+### 5.7 How it runs in production (Batch 4, app side)
+
+```mermaid
+flowchart LR
+    B[Browser] -->|https://postpix.tylertorrero.dev| CF[CloudFront]
+    CF -->|default| S3S[(S3: React build)]
+    CF -->|/media/*| S3M[(S3: uploads + seed images)]
+    CF -->|/api/*| CA[Caddy on shared EC2]
+    CA --> API[postpix-api container<br/>gunicorn + Flask]
+    API --> RDS[(RDS PostgreSQL<br/>database postpix)]
+    API -->|PutObject via instance role| S3M
+```
+
+- **One origin.** CloudFront serves the React build from S3, the images under `/media/*` from the
+  uploads bucket, and sends `/api/*` to Caddy on the EC2, which forwards to this app's container.
+  The browser sees one site, so cookies are first-party and no CORS is needed.
+- **The container** is the P33 image: `gunicorn -c gunicorn.conf.py wsgi:app` on port 8000 as a
+  non-root user, `FLASK_ENV=production`, API-only (`SERVE_FRONTEND` off), Docker health check on
+  `/api/health`.
+- **Proxy awareness.** `TRUSTED_PROXY_HOPS=1` makes Flask believe Caddy's `X-Forwarded-Proto` /
+  `X-Forwarded-Host`. CloudFront must forward the viewer's `Host` and Caddy must say `https`,
+  otherwise the CSRF referrer check fails (details in `CHANGES.md`, P38).
+- **Database.** `DATABASE_URL=postgresql://postpix@<rds-endpoint>:5432/postpix`,
+  `DATABASE_PASSWORD` from a secret store, `DATABASE_SSLMODE=require`.
+- **Images.** `S3_BUCKET`, `AWS_REGION`, `MEDIA_BASE_URL=https://postpix.tylertorrero.dev/media`;
+  credentials come from the EC2 instance role.
+- **Nightly.** A cron line or systemd timer on the EC2 runs
+  `docker compose exec -T postpix-api flask demo reset`.
+- **Not in this repo:** the Terraform (EC2, RDS, buckets, CloudFront, IAM), the Caddyfile, the
+  production compose file, the deploy pipeline and backups live in the shared infra repo.
+  `CHANGES.md` ("Batch 4: what the infra repo needs") lists exactly what this app expects.
 
 ---
 
@@ -782,7 +888,10 @@ Thunks (plain async functions) return `null` on success or an array of error mes
   for a 404, an error with Try again, otherwise the header (avatar, name, `@username`, stats,
   Follow/Following with `aria-pressed`) and a `PostGrid` with Load more.
 - **ui/**: `Avatar` (squircle, decorative), `Time` (`<time>`), `StatusMessage`, `Skeletons`,
-  `Toaster` (a `popover`, so toasts show above open dialogs; fed by `utils/toast.js`).
+  `Toaster` (a `popover`, so toasts show above open dialogs; fed by `utils/toast.js`),
+  `DemoNotice` (Q2: shown by `App.jsx` under the top bar when `session.user.isDemo`; a
+  `role="status"` message in a labelled `<aside>`, dismissal kept in `sessionStorage` for the
+  browser session).
 - **Login page** (`LoginPage/`): split screen (teal panel with the `Mosaic` artwork + form),
   `LoginForm` (login + Demo Login), `SignUpModal` > `SignUpForm` + `ProPicImageUpload`.
 
@@ -907,8 +1016,10 @@ Liking works from the feed card and from the post dialog (same `LikeButton`).
 | **409** on follow/unfollow | `follow_user` / `unfollow_user` in `app/api/user_routes.py`; `setFollow` in `store/users.js` | Already following / not following (another tab); the thunk rolls back and shows a toast |
 | **413** on image upload | `MAX_CONTENT_LENGTH` in `app/config.py`, `app/errors.py` | Request body over 10 MB |
 | **400** "file type not permitted" / "not a valid image" (there is no 415 in this code) | `allowed_file`, `validate_image` in `app/s3_helpers.py`; `accept=` on the file inputs | Wrong extension, or the bytes are not a real JPEG/PNG/WEBP/GIF |
-| **502** "upload failed" / "S3 is not configured" | `upload_file_to_s3` in `app/s3_helpers.py`, `.env` `S3_BUCKET`/`S3_KEY`/`S3_SECRET`, Flask console (real AWS error is printed there) | Empty bucket name, bad credentials, or bucket permissions |
-| Upload works but the image is broken (403 in Network tab) | S3 bucket policy (see `CHANGES.md` P7) | Uploads no longer send `public-read` ACL; the bucket needs a public-read policy on `uploads/*` or CloudFront (P37) |
+| **502** "upload failed" / "S3 is not configured" | `upload_file_to_s3` in `app/s3_helpers.py`, `.env` `S3_BUCKET` / `AWS_REGION` / `AWS_PROFILE`, Flask log (the real AWS error is logged there) | Empty bucket name, no AWS credentials (run `aws sso login`; `S3_KEY`/`S3_SECRET` are no longer read), or the identity may not `s3:PutObject` (+ `s3:PutObjectTagging` for demo uploads) |
+| Upload works but the image is broken (403 in Network tab) | `MEDIA_BASE_URL`, `public_url()` in `app/s3_helpers.py` | The bucket is private (as it should be). Without `MEDIA_BASE_URL` the URL is the raw S3 URL, which a private bucket refuses; set `MEDIA_BASE_URL` to the CloudFront `/media` URL |
+| **400 "The referrer does not match the host"** in production only | `TRUSTED_PROXY_HOPS`, the CloudFront origin request policy, the Caddyfile (`CHANGES.md` P38) | Flask sees `https` but not the public host: CloudFront must forward `Host` (or Caddy must set `X-Forwarded-Host`) |
+| Demo account looks messy or a demo post vanished | `flask demo reset` (`app/seeds/demo.py`), the nightly timer on the EC2 | Visitors changed it; the nightly reset restores the seed state. Run it by hand any time (`--dry-run` first) |
 | **Home feed empty** | `me_following_posts` in `app/api/me_routes.py`, `ActualFeed.jsx`, `store/feeds.js`, the `follows` table | A new user with no posts who follows nobody sees the "Your feed is empty" state; or seeds did not run |
 | Feed or grid order looks odd | `feeds.ids` / `profile.postIds` in the store, `page_of_posts` in `serializers.py` | Lists keep the server's order (newest first); a new post is added to the top of every list; check the cursor if a page repeats or skips |
 | **404 on refresh** of a page when Flask serves the build | `react_root` and `FRONTEND_DIST` in `app/__init__.py`; `react-app/build/` | Fixed in P18. If it happens: the build is missing (`npm run build`), or the URL has a dot in its last segment (treated as a missing file -> 404) |
@@ -926,7 +1037,7 @@ Liking works from the feed card and from the post dialog (same `LikeButton`).
 
 ---
 
-## 10. What changed in Batches 1 to 3 and what is coming
+## 10. What changed in Batches 1 to 4 and what is coming
 
 Full details, verification steps and caveats are in `CHANGES.md`; the full plan is in
 `MODERNIZATION_PLAN.md`.
@@ -977,16 +1088,36 @@ Full details, verification steps and caveats are in `CHANGES.md`; the full plan 
 - **Z1** six slices instead of fourteen; **Z2** redux-logger removed; **Z3** "Profile not found";
   **Z4** your own posts in your home feed, one query.
 
+**Batch 4 (done, app side of the AWS deployment):**
+
+- **P33** API-only two-stage Docker image (non-root, health check, allowlist `.dockerignore`,
+  optional migrate/seed entrypoint); Flask stops serving the React build in production.
+- **P34** `docker-compose.yml` for local dev (SQLite, or Postgres 17 with the `postgres`
+  profile); Postgres pool and SSL settings for RDS (`DATABASE_SSLMODE`, `DATABASE_PASSWORD`).
+- **P37** S3 via the instance role (no keys), `MEDIA_BASE_URL`, seed images listed in
+  `app/seeds/media_manifest.json` under `seed/`.
+- **P38** ProxyFix with configurable trusted hops, security headers, cookie-free `/api/health`,
+  new `/api/health/db`.
+- **P41 + Q1** `flask demo reset` (only the demo user's data, idempotent, production-safe,
+  nightly), demo account cannot be deleted, demo uploads tagged for expiry.
+- **Q2** "demo data resets nightly" notice. **Q3** port 8000 everywhere (`.flaskenv`),
+  `VITE_BACKEND_URL`, complete `.env.example`.
+- First pytest suite in `tests/` (37 tests) with `pytest.ini`.
+
 **P1 (Tyler action, no code):** the AWS key leaked in old git history belongs to the original
 teammate; they must deactivate it. Also generate a new `SECRET_KEY`, and delete the
 `HEROKU_API_KEY` / `HEROKU_APP_NAME` repo secrets on GitHub.
 
-**Coming (later batches):** Docker + AWS with CloudFront in front of S3 and EC2 (P33-P41, including
-the new deploy pipeline, backups and a demo reset), tests and CI (P42-P45), docs (P46-P48).
+**Coming (later batches):** in the shared infra repo: Terraform for the EC2, RDS, buckets,
+CloudFront and IAM (P35, P36, P37 infra half, P38 Caddy/CloudFront half), the deploy pipeline
+(P39) and backups (P40). In this repo: the full test suite and CI (P42-P45, building on `tests/`),
+docs (P46-P48).
 
 **Open questions from `CHANGES.md`:** how the new design looks in a real browser at 375/768/1200 px,
-an `og:image` for link previews, whether to keep the credits, and renaming the repo to `postpix`.
-(Own posts in the feed was answered by Z4, the deep-link question by P18.)
+an `og:image` for link previews, whether to keep the credits, the rights to the seed images before
+they are copied into your bucket, and whether to also protect the other seed logins (all use the
+password `password`). (Own posts in the feed was answered by Z4, the deep-link question by P18, the
+repo rename is done: `tyler-tor/postpix`.)
 
 ---
 
@@ -1112,6 +1243,11 @@ that wiped the database.
 - **Cursor pagination** - a page request says "give me rows after this one" (`nextCursor`) instead of "skip N rows"; fast with an index and stable while new rows arrive.
 - **Optimistic update** - change the screen first, send the request, undo the change if it fails.
 - **Design tokens** - CSS variables (colours, sizes, spacing) in one file that every component uses.
-- **Vite dev proxy** - `server.proxy` in `react-app/vite.config.js` forwards `/api` calls from port 3000 to Flask on port 5000 in development.
+- **Vite dev proxy** - `server.proxy` in `react-app/vite.config.js` forwards `/api` calls from port 3000 to Flask (`VITE_BACKEND_URL`, default port 8000) in development.
 - **Vite** - the frontend dev server and bundler (replaced Create React App in P16); env vars for the browser must start with `VITE_`.
 - **SPA deep link** - a URL like `/explore` that only exists in React Router; the server must return `index.html` for it.
+- **Reverse proxy / ProxyFix** - a server in front of the app (CloudFront, Caddy) that forwards requests and adds `X-Forwarded-*` headers; Werkzeug's `ProxyFix` makes Flask believe a set number of them (`TRUSTED_PROXY_HOPS`).
+- **Instance role** - an IAM role attached to an EC2 server; boto3 picks up its temporary credentials by itself, so no access keys are stored anywhere.
+- **RDS** - Amazon's managed PostgreSQL; PostPix gets its own database (`postpix`) and user on a shared instance.
+- **Multi-stage Docker build** - one stage installs packages, a second, clean stage copies only the result, so the final image is smaller and has no build leftovers.
+- **Idempotent** - running it twice has the same effect as running it once (`flask seed all`, `flask demo reset`).

@@ -6,7 +6,9 @@ changed, which files, how to check it yourself, and what to watch out for.
 
 Batch 1 = security and bug fixes (P2-P11) on the **current** stack (Flask 2.0 /
 SQLAlchemy 1.4 / Create React App). Batch 2 = safe seeding (P0) and the stack upgrades
-(P12-P19); see "Batch 2 items" below.
+(P12-P19); see "Batch 2 items" below. Batch 3 = performance and UI/UX (P20-P32, Z1-Z4).
+Batch 4 = the app side of the AWS deployment (P33, P34, P37, P38, P41 and add-ons Q1-Q3); the
+end of this file lists what the shared infra repo needs from the app.
 
 ---
 
@@ -91,6 +93,12 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 - **P21:** the posts indexes are plain ascending columns instead of `created_at DESC`, because Alembic's autogenerate check reports false differences for descending indexes on SQLite; the planner reads an ascending index backwards, so the speed is the same.
 - **P27/P32:** icons are Feather (`react-icons/fi`, MIT) instead of the previous mix of Ai/Fa/Hi icon sets, so `react-icons` is now used from one family; fonts are self-hosted Bricolage Grotesque and Figtree (OFL) via `@fontsource-variable`, which needs one `npm install`.
 - **P28/P30/P31:** there was no real browser, so every screen was checked as markup in jsdom (structure, roles, focus, request counts); spacing, breakpoints and animation were written from the design and not seen. The accessibility audit is my own script, not axe.
+- **Batch 4 architecture (approved by Tyler):** production uses AWS RDS PostgreSQL (shared instance, database `postpix`) instead of a Postgres container, one shared EC2 with Caddy for three apps, and a separate infra repo. So there is no `compose.prod.yml`, `compose.override.yml` or Postgres volume here; this repo has one `docker-compose.yml` for local development with an optional `postgres` profile (P34).
+- **P33:** the entrypoint runs `flask db upgrade` only with `RUN_MIGRATIONS=1` (the plan had it run on every start), so production migrations happen as a deploy step after an RDS snapshot. Docker was not available, so the image was validated with hadolint, shellcheck and an "image simulation" instead of a real build.
+- **P37:** one media bucket with `uploads/` and `seed/` prefixes served under `/media/*` (the plan said `/uploads/*`); no MinIO for local development (seed images fall back to their original URLs, uploads use your AWS profile).
+- **P38:** the secret `X-Origin-Verify` header is left to Caddy (shared by the three apps); nothing app-side.
+- **P41:** the command is `flask demo reset` (Q1 naming), not `flask seed reset-demo`; deleting the demo account is now blocked (the plan's open question, decided on the safe side; easy to undo).
+- **Batch 4 extras (small, not in the item list):** `DATABASE_PASSWORD` and Postgres pool settings (P34), cookie-free `/api/health` (P38), S3 tag on demo uploads (P41), gunicorn's control socket turned off (P33), and the first `tests/` folder with 37 pytest tests (a head start on P42).
 
 ---
 
@@ -103,6 +111,12 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 5. **Look and feel (Batch 3):** please open the app at 375, 768 and 1200 px and tell me what to change. The palette (teal `#0F766E` on cool grey, Bricolage Grotesque headings) is easy to adjust in `src/styles/tokens.css`.
 6. **Share preview image:** `index.html` has Open Graph tags but no `og:image`. Do you want a 1200x630 card made for link previews (needs a hosted absolute URL)?
 7. **Credits:** the home page rail lists Derek Torrero, Theo Fandrich and Alan Deleon with GitHub/LinkedIn links, kept from the old version. Keep, edit or remove?
+8. **Seed images (Batch 4):** the media pack would copy third-party pictures (imgur uploads, a vecteezy stock icon, an Adobe Stock preview as the default avatar, the teammate's bucket) into your bucket. Replace them with your own photos (same keys, no code change), or keep them?
+9. **Other seed logins:** every seed user (`marnie@aa.io`, ...) has the password `password`, so visitors can log in as them too, and only the demo account is reset nightly. Change their passwords to random ones in production (keeps them as content, removes the logins)?
+10. **Demo reset scope:** the reset also removes other people's comments and likes **on the demo user's posts**. OK, or keep those?
+11. **Demo account deletion** is now blocked (403). OK?
+12. **Origin transport:** CloudFront -> EC2 over HTTP (Caddy then needs `header_up X-Forwarded-Proto https`) or HTTPS with a certificate on Caddy? And later `DATABASE_SSLMODE=verify-full` with the RDS CA bundle baked into the image?
+13. **Nightly reset time:** 09:17 UTC (2:17 AM Denver in winter, 3:17 AM in summer). OK?
 
 ---
 
@@ -1691,9 +1705,9 @@ differ):
      such as `default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline';
      font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self';
      form-action 'self'` (with `MEDIA_BASE_URL` on the same domain, `img-src 'self'` covers all
-     production images). Its `Referrer-Policy` must **not** be `no-referrer` /
-     `same-origin`-less variants that drop the Referer on same-origin requests; use
-     `strict-origin-when-cross-origin`.
+     production images). Its `Referrer-Policy` must **not** be `no-referrer` (that drops the
+     Referer on same-origin requests too, and every POST then fails the CSRF check); use
+     `strict-origin-when-cross-origin`. (Corrected wording in the walkthrough commit.)
   5. The secret `X-Origin-Verify` header from the plan is best checked in Caddy (shared by all
      three apps), not in Flask; nothing app-side was added for it.
 - **Files:** `app/__init__.py`, `app/config.py`, new `tests/test_proxy_security.py`.
@@ -1707,8 +1721,10 @@ differ):
 - **Things to watch:**
   - `/api/health/db` is public through CloudFront. It only runs `SELECT 1` and reveals nothing,
     but Caddy can restrict it if you prefer.
-  - gunicorn's own access log still shows the proxy's IP (it does not use ProxyFix). Caddy's
-    access log has the real client IP.
+  - gunicorn's own access log does not use ProxyFix: it shows the proxy's IP, except for
+    requests from 127.0.0.1, where gunicorn itself trusts `X-Forwarded-For`
+    (`forwarded_allow_ips`). Caddy's access log has the real client IP. (Corrected in the
+    walkthrough commit.)
   - gunicorn adds a `Server: gunicorn` header; Caddy can remove it (`header -Server`).
 
 ## P41 + Q1 — Keep the demo account clean: `flask demo reset` (nightly)
@@ -1891,3 +1907,95 @@ differ):
     deleted.
   - If something else on your Mac already uses 8000, set `FLASK_RUN_PORT` in `.env` and
     `VITE_BACKEND_URL` in `react-app/.env.local` to the same new port.
+
+## Batch 4: what the infra repo needs from this app
+The app side is done in this repo; this is the contract for the shared infra repo (P35, P36,
+P37 infra half, P38 Caddy/CloudFront half, P39, P40). Names in `<angle brackets>` are choices for
+the infra repo.
+
+**Container environment (production)**
+
+| Variable | Value | Notes |
+|---|---|---|
+| `FLASK_ENV` | `production` | already the image default |
+| `SECRET_KEY` | new random 64-hex string | secret (SSM Parameter Store SecureString / Secrets Manager); never the old leaked one |
+| `DATABASE_URL` | `postgresql://postpix@<rds-endpoint>:5432/postpix` | password can stay out of the URL |
+| `DATABASE_PASSWORD` | the `postpix` DB user's password | secret; escaped into the URL by the app |
+| `DATABASE_SSLMODE` | `require` | RDS Postgres 15+ forces SSL anyway |
+| `S3_BUCKET` | `<postpix-media bucket name>` | |
+| `AWS_REGION` | `us-east-2` | |
+| `MEDIA_BASE_URL` | `https://postpix.tylertorrero.dev/media` | |
+| `TRUSTED_PROXY_HOPS` | `1` (default in production) | Caddy is the only proxy that writes `X-Forwarded-Proto/Host` |
+| optional | `PORT=8000`, `WEB_CONCURRENCY=2`, `GUNICORN_THREADS=4`, `DB_POOL_SIZE=5`, `DB_MAX_OVERFLOW=2`, `HSTS_SECONDS`, `TRUSTED_PROXY_HOPS_FOR`, `LOG_LEVEL` | defaults are fine on a t4g.small |
+| never set | `S3_KEY`, `S3_SECRET`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | credentials come from the instance role |
+| leave off | `RUN_MIGRATIONS`, `SEED_ON_START`, `SERVE_FRONTEND` | the deploy runs migrations explicitly |
+
+**AWS resources**
+- **RDS:** on the shared PostgreSQL instance, a database **`postpix`** and a login role **`postpix`**
+  that owns it (it needs `CREATE` in schema `public` because it runs its own migrations; no
+  `rds_superuser`). Automated backups on; snapshot before each migration (P40). Allow 5432 from
+  the EC2 security group only. Peak connections from this app: 2 workers x (5 + 2) = 14, plus a
+  CLI command now and then.
+- **S3 media bucket** `<postpix-media bucket>` (e.g. `postpix-media-<account-id>` in us-east-2):
+  Block Public Access on, Object Ownership "bucket owner enforced" (no ACLs), default encryption
+  SSE-S3. Prefixes: `uploads/` (written by the app) and `seed/` (written once by the infra repo).
+  Lifecycle rule: objects tagged `postpix-demo=true` expire after 2 days.
+- **Media pack:** for every entry in `app/seeds/media_manifest.json` (`default_avatar`, `avatars`,
+  `posts`) download `source` and upload it to `key` with `Content-Type` from the extension
+  (`.jpg` -> `image/jpeg`, `.png` -> `image/png`) and
+  `Cache-Control: public, max-age=31536000, immutable`. Report any `source` that fails.
+- **S3 site bucket** for the React build (`react-app/build/` after `npm ci && npm run build`; no
+  build-time env vars needed). Upload `assets/*` with the immutable cache header and
+  `index.html` with `no-cache`; invalidate `/index.html` after each deploy.
+- **CloudFront** for `postpix.tylertorrero.dev` (ACM certificate in us-east-1):
+  - default behaviour -> site bucket (OAC). SPA routing with a viewer-request **CloudFront
+    Function** that rewrites paths without a file extension to `/index.html`. Do **not** use
+    distribution-wide custom error responses (403/404 -> `/index.html`): they would also turn the
+    API's JSON 404/403 answers into the HTML page.
+  - `/media/*` -> media bucket (OAC), CachingOptimized, CloudFront Function stripping the `/media`
+    prefix (`request.uri = request.uri.replace(/^\/media/, '')`).
+  - `/api/*` -> EC2 origin (Caddy), CachingDisabled, all HTTP methods, origin request policy
+    **AllViewer** (forwards `Host`, cookies, query strings, `X-CSRFToken`, `Referer`).
+  - response headers policy on the default behaviour: HSTS, `nosniff`, `X-Frame-Options: DENY`,
+    `Referrer-Policy: strict-origin-when-cross-origin`, and a CSP like `default-src 'self';
+    img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self';
+    connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`.
+- **EC2 / Caddy:** a `postpix.tylertorrero.dev` site block that proxies to the `postpix-api`
+  container on port 8000, passes `Host` through, and (if CloudFront -> EC2 is plain HTTP)
+  `header_up X-Forwarded-Proto https`; optionally checks a secret `X-Origin-Verify` header sent by
+  CloudFront; `header -Server`. The container's own Docker health check uses `/api/health`;
+  `/api/health/db` is for monitoring.
+- **EC2 instance metadata:** set the IMDSv2 **hop limit to 2** (`metadata_options {
+  http_tokens = "required", http_put_response_hop_limit = 2 }`). With the default of 1, boto3
+  inside a Docker container (bridge network) cannot reach the metadata service, finds no
+  credentials, and every upload fails with "upload failed".
+- **Nightly demo reset:** the crontab line or systemd timer from P41
+  (`docker compose exec -T postpix-api flask demo reset`).
+- **Deploy order (P39):** pull the new image -> RDS snapshot -> `docker compose run --rm
+  postpix-api flask db upgrade` -> `docker compose run --rm postpix-api flask seed all` (safe:
+  only seeds an empty database) -> `docker compose up -d postpix-api` -> check
+  `/api/health/db`. Build the image for `linux/arm64` if the EC2 is Graviton.
+
+**Instance role: least-privilege policy for this app** (add to the shared EC2 role; the other
+two apps get their own statements):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PostPixUploadImages",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:PutObjectTagging"],
+      "Resource": "arn:aws:s3:::<postpix-media-bucket>/uploads/*"
+    }
+  ]
+}
+```
+
+`s3:PutObjectTagging` is needed because demo uploads carry a tag. The app never reads, lists or
+deletes objects and writes nothing outside `uploads/`. If the deploy script reads the secrets on
+the instance, it also needs `ssm:GetParameters` on
+`arn:aws:ssm:us-east-2:<account-id>:parameter/postpix/*` (plus `kms:Decrypt` on the key only if a
+customer-managed KMS key encrypts them); the running app itself needs no SSM access. If the bucket
+ever uses SSE-KMS with a customer key, add `kms:GenerateDataKey` on that key.
