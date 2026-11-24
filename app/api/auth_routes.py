@@ -68,7 +68,7 @@ def sign_up():
         profile_picture = None
         image = request.files.get('image')
         if image and image.filename:
-            upload = process_and_upload_image(image)
+            upload = process_and_upload_image(image, 'avatar')
             if 'url' not in upload:
                 return {'errors': [f"image : {upload['errors']}"]}, upload.get('status', 400)
             profile_picture = upload['url']

@@ -2,7 +2,9 @@ import React, { useState } from "react";
 import "./ImageUploadComponent.css";
 import apiFetch from "../../../utils/apiFetch";
 //!pass in a setValue from postForm to get the image url.
-const ImageUploadComponent = ({ setUrl }) => {
+// Uploads the picked file; the server shrinks it and answers with the public
+// URLs and size, which are handed up through onUploaded.
+const ImageUploadComponent = ({ onUploaded }) => {
   const [image, setImage] = useState(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [uploadedImg, setUploadImg] = useState(false);
@@ -23,11 +25,11 @@ const ImageUploadComponent = ({ setUrl }) => {
       body: formData,
     });
     if (res.ok) {
-      const img_url = await res.json();
+      const uploaded = await res.json();
       setImageLoading(false);
-      setUrl(img_url.url);
+      onUploaded(uploaded);
       setUploadImg(true);
-      setPrevImgUrl(img_url.url);
+      setPrevImgUrl(uploaded.thumbUrl || uploaded.url);
     } else {
       setImageLoading(false);
       // a real app would probably use more advanced

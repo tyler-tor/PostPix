@@ -37,8 +37,11 @@ export const fetchPost = (id) => async (dispatch) => {
   return res;
 };
 
-export const createPost = ({ caption, imgUrl }) => async (dispatch) => {
-  const res = await api("/api/posts/", { method: "POST", json: { caption, img_url: imgUrl } });
+export const createPost = ({ caption, imgUrl, thumbUrl, width, height }) => async (dispatch) => {
+  const res = await api("/api/posts/", {
+    method: "POST",
+    json: { caption, img_url: imgUrl, thumb_url: thumbUrl, img_width: width, img_height: height },
+  });
   if (!res.ok) return res.errors;
   dispatch(postCreated(res.data));
   return null;

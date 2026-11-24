@@ -29,6 +29,10 @@ const FeedPost = ({ postId }) => {
         <img
           className="feed-child post-image-wrapper"
           src={post.imgUrl}
+          loading="lazy"
+          decoding="async"
+          width={post.imgWidth || undefined}
+          height={post.imgHeight || undefined}
           alt={post.caption || `Post by ${post.users.username}`}
         />
       </div>

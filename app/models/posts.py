@@ -17,6 +17,12 @@ class Post(TimestampMixin, db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     likes = db.Column(db.Integer, default=0)
     img_url = db.Column(db.String(255))
+    # P24: small version for grids, and the size of img_url so the page can
+    # reserve the space before the image arrives. All optional (older posts
+    # and the demo seed use external pictures without them).
+    thumb_url = db.Column(db.String(255))
+    img_width = db.Column(db.Integer)
+    img_height = db.Column(db.Integer)
     caption = db.Column(db.String(150))
 
     users = db.relationship('User', back_populates="posts", single_parent=True)
@@ -30,6 +36,9 @@ class Post(TimestampMixin, db.Model):
             'userId': self.user_id,
             'likes': self.likes,
             'imgUrl': self.img_url,
+            'thumbUrl': self.thumb_url,
+            'imgWidth': self.img_width,
+            'imgHeight': self.img_height,
             'caption': self.caption,
             'createdAt': iso(self.created_at),
             'updatedAt': iso(self.updated_at)

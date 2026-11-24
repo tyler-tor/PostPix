@@ -8,11 +8,13 @@ img_routes = Blueprint('img', __name__)
 @img_routes.route('/upload', methods=['POST'])
 @login_required
 def upload_image():
-    """Upload one image (form field "image") and return its public URL."""
+    """Upload one image (form field "image"), resize it, return its public URLs."""
     if "image" not in request.files:
         return {"errors": ["image required"]}, 400
 
-    result = process_and_upload_image(request.files["image"])
+    kind = 'avatar' if request.form.get('kind') == 'avatar' else 'post'
+    result = process_and_upload_image(request.files["image"], kind)
     if "url" not in result:
         return {"errors": [result["errors"]]}, result.get("status", 400)
-    return {"url": result["url"]}
+    return {"url": result["url"], "thumbUrl": result["thumbUrl"],
+            "width": result["width"], "height": result["height"]}

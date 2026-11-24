@@ -38,12 +38,19 @@ const SinglePostModal = ({ postId }) => {
 
   return (
     <>
-      <img src={post.imgUrl} alt={post.caption || `Post by ${post.users.username}`} onClick={() => setShowModal(true)} />
+      {/* The grid shows the small version; the modal below loads the full image. */}
+      <img
+        src={post.thumbUrl || post.imgUrl}
+        alt={post.caption || `Post by ${post.users.username}`}
+        loading="lazy"
+        decoding="async"
+        onClick={() => setShowModal(true)}
+      />
       {showModal && (
         <Modal onClose={() => setShowModal(false)}>
           <div className="post-modal-container">
             <div className="post-modal-image-wrapper">
-              <img src={post.imgUrl} alt={post.caption || `Post by ${post.users.username}`} />
+              <img src={post.imgUrl} alt={post.caption || `Post by ${post.users.username}`} decoding="async" />
             </div>
             <div className="post-modal-content-container">
               <div className="post-modal-username-picture-row">

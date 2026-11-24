@@ -50,7 +50,10 @@ def create_post():
         post = Post(
             user_id=current_user.id,
             caption=form.data['caption'],
-            img_url= form.data['img_url']
+            img_url=form.data['img_url'],
+            thumb_url=form.data['thumb_url'] or None,
+            img_width=form.data['img_width'],
+            img_height=form.data['img_height'],
         )
         db.session.add(post)
         db.session.commit()

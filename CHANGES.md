@@ -1144,3 +1144,47 @@ look and feel (P27, P32, P28, P29, P30, P31), then the walkthrough update.
   name. `flask db check` prints a warning that SQLite cannot reflect expression indexes;
   it reports no changes. Search results have no keyboard (arrow key) navigation or
   combobox roles yet; P30 adds those.
+
+## P24 — Image optimization
+- **Problem:** the build shipped a 4.7 MB `stock.jpg` (imported by a component that did not
+  use it); uploads were stored exactly as sent, so a 3-8 MB phone photo was downloaded in
+  full to draw a 300 px grid tile (and kept its camera metadata, including GPS location);
+  post images had no `loading` / size hints, so the page jumped as they arrived.
+- **What changed:**
+  - **Bundle:** deleted `react-app/src/images/` (`stock.jpg` and four icon images, none
+    imported by anything; icons come from `react-icons`). The largest file in the build is
+    now the 224 kB main script.
+  - **Uploads** (`app/s3_helpers.py`): after the existing validation, the image is decoded
+    with Pillow, rotated per its camera orientation, and re-encoded: a WebP of at most
+    1080 x 1350 px (quality 82) plus a 400 px WebP thumbnail (quality 78); images are never
+    enlarged. Profile pictures (signup and `kind=avatar`) become one 320 px WebP. All
+    metadata (EXIF, GPS) is dropped because the new file does not carry it. GIFs become a
+    still image. Files are uploaded with `Cache-Control: public, max-age=31536000, immutable`
+    (their random names are never reused).
+  - `POST /api/img/upload` now answers `{url, thumbUrl, width, height}`.
+  - **Database:** migration `0004_post_images` adds nullable `thumb_url`, `img_width`,
+    `img_height` to `posts` (downgrades cleanly); post payloads carry `thumbUrl`,
+    `imgWidth`, `imgHeight`; `POST /api/posts/` accepts them (all optional, so older posts,
+    seeds with external pictures and older clients keep working).
+  - **Frontend:** grid tiles use `thumbUrl` (falling back to `imgUrl`) with
+    `loading="lazy"` and `decoding="async"`, and the tiles have a fixed `aspect-ratio`; feed
+    images are lazy and carry their `width`/`height`; the new-post form passes the upload's
+    URLs and size on.
+- **Files:** `app/s3_helpers.py`, `app/api/{img,auth,post}_routes.py`, `app/models/posts.py`,
+  `app/forms/create_post.py`, `migrations/versions/0004_post_images.py`, `PostForm.jsx`,
+  `ImageUploadComponent.jsx`, `SinglePostModal.jsx`, `ActualFeed.jsx`, `PostGrid.css`,
+  `store/posts.js`, deleted `src/images/*`.
+- **How to verify:** test-client script (18 checks, S3 replaced by a fake): a 3000x2000 JPEG
+  becomes a 1080x720 WebP plus a 400x267 thumbnail under 30 kB; small images are not
+  enlarged; a tall image is capped at 1350 px; EXIF rotation is applied and the camera
+  maker string is gone from the bytes; PNG with alpha and GIF work; avatars get one 320 px
+  file; fake images and bad extensions are still rejected; posts store and return the
+  thumbnail and size, and the old payload (no thumbnail) still works. The P7 script was
+  updated for the new `.webp` names and cache header. Frontend builds; jsdom explore, home
+  and profile runs have 0 errors. Migration up/down/up and `flask db check` are clean.
+- **Things to watch:** uploading to the real S3 bucket was not tried (needs credentials);
+  everything up to the S3 call is covered by the fake. Existing seeded posts still point at
+  external pictures, so they have no thumbnail until P37 gives the project its own bucket.
+  Pillow's WebP encoder must be present in the install (it is in the pinned wheels). A
+  future batch migration on `users` on SQLite would drop the `lower(username)` expression
+  index from P23 (SQLite cannot reflect it): recreate it in such a migration.

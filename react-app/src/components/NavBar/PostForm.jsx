@@ -8,18 +8,18 @@ import './NavBar.css'
 const PostForm = ({ onClose }) => {
   const [errors, setErrors] = useState([]);
   const [caption, setCaption] = useState("");
-  const [url, setUrl] = useState("");
+  const [image, setImage] = useState(null); // { url, thumbUrl, width, height } from the upload
   const user = useSelector((state) => state.session.user);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   const onPostSubmit = async (e) => {
     e.preventDefault();
-    if (!url) {
+    if (!image) {
       setErrors(["Upload an image first."]);
       return;
     }
-    const result = await dispatch(createPost({ caption, imgUrl: url }));
+    const result = await dispatch(createPost({ caption, imgUrl: image.url, thumbUrl: image.thumbUrl, width: image.width, height: image.height }));
     if (result) {
       setErrors(result);
     } else {
@@ -30,7 +30,7 @@ const PostForm = ({ onClose }) => {
 
   return (
     <div className="post-form-wrapper">
-      <ImageUploadComponent setUrl={setUrl} />
+      <ImageUploadComponent onUploaded={setImage} />
       <form className="post-form-container" onSubmit={onPostSubmit}>
         <div>
           {errors.map((error) => (
