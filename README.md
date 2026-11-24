@@ -30,6 +30,15 @@ Welcome to our Instagram Clone Group Project. This is a web app that allows you 
    5. Run flask run to start the backend in your root folder
    6. cd into your react-app folder and run npm install to install dependencies and run npm start to run the frontend 
    7. The application will start at http://localhost:3000/
+
+## Running the API with Docker (optional)
+Instead of steps 2, 4 and 5 you can run the backend in Docker (Docker Desktop):
+   - `docker compose up --build` starts the API on http://localhost:8000 with SQLite; it applies
+     the migrations and seeds an empty database by itself.
+   - `docker compose up --build api-pg` does the same on PostgreSQL 17 (closer to production).
+   - Run only one of the two (both use port 8000). Then start the frontend as in step 6.
+   - `docker compose down` stops everything; `docker compose down -v` also deletes the local
+     databases.
    
 ## Screenshots of Usage
 

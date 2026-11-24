@@ -1517,3 +1517,66 @@ differ):
     `http://localhost`, except older Safari. For local work use docker compose (P34), which runs
     the development config.
   - The health check uses `PORT`. If you ever set `BIND` to a different port, set `PORT` too.
+
+## P34 — docker compose for local development (+ RDS-ready database settings)
+- **Problem:** There was no one-command way to run the API in the same container that production
+  will use, no way to try the app on Postgres locally, and the database connection had no
+  settings for a managed, shared Postgres (RDS): no SSL option, no protection against connections
+  RDS has closed, and SQLAlchemy's default pool (up to 15 connections per worker process) on a
+  database instance shared with two other apps.
+- **What changed:**
+  - **New `docker-compose.yml`** (local development only; production compose lives in the infra
+    repo):
+    - `api`: built from the P33 `Dockerfile`, runs Flask's development server with auto-reload on
+      port 8000 (published on `127.0.0.1` only), your code bind-mounted (`app/` read-only,
+      `migrations/` writable), SQLite in a named volume (`/data/postpix-dev.db`). Loads your
+      `.env` if it exists; the compose `environment` wins for `FLASK_ENV=development`,
+      `DATABASE_URL`, and `RUN_MIGRATIONS=1` + `SEED_ON_START=1` (so the first start creates
+      the tables and the demo data by itself).
+    - `api-pg` + `db` in an optional **`postgres` profile** ("prod-like"): the same API on
+      `postgres:17-alpine` (named volume, `pg_isready` health check, the API waits until it is
+      healthy). Postgres is published on `127.0.0.1:5433` for a GUI client.
+  - **Database settings for RDS** (`app/config.py`), only applied to Postgres URLs:
+    - `DATABASE_SSLMODE` (e.g. `require`) and optional `DATABASE_SSLROOTCERT` are passed to
+      psycopg 3. RDS accepts SSL; `require` encrypts the connection. (`verify-full` also checks the
+      server certificate and needs the RDS CA bundle file in the image, a possible later step.)
+    - `DATABASE_PASSWORD` (optional): if set, it is put into `DATABASE_URL` correctly escaped,
+      so the URL can be written without a password. RDS-generated passwords often contain
+      `@ / : #`, which break a hand-written URL.
+    - Connection pool: `pool_pre_ping` (a connection RDS closed is replaced instead of failing a
+      request), `pool_recycle` 300 s, `pool_size` 5 + `max_overflow` 2 per worker process
+      (2 workers -> at most 14 connections for this app), `connect_timeout` 10 s,
+      `application_name=postpix` (shows up in `pg_stat_activity`, handy on a shared instance).
+      Each can be changed with `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_RECYCLE`,
+      `DB_CONNECT_TIMEOUT`, `DB_APPLICATION_NAME`.
+    - SQLite (local, tests) gets none of these options, as before.
+  - README: a short "Running the API with Docker" section.
+- **Commands:**
+  - `docker compose up --build` -> API with SQLite on http://localhost:8000.
+  - `docker compose up --build api-pg` -> API with Postgres (naming `api-pg` turns on the
+    `postgres` profile and starts `db` too). Run only one of `api` / `api-pg`: both use port 8000.
+  - Frontend as usual: `cd react-app && npm run dev` (http://localhost:3000, proxies `/api` to 8000).
+  - One-off commands: `docker compose exec api flask seed all --reset`,
+    `docker compose exec api flask routes`, `docker compose logs -f api`.
+  - `docker compose down` stops; **`docker compose down -v` deletes the local databases** (named
+    volumes `api-data`, `pg-data`).
+- **Files:** new `docker-compose.yml`, `app/config.py`, new `tests/test_db_config.py`, `README.md`.
+- **How to verify:** `docker compose up --build`, then `curl localhost:8000/api/health` and open
+  http://localhost:3000 (Vite) and log in with Demo. Then `docker compose down` and
+  `docker compose up --build api-pg`: the log shows the 4 migrations running against
+  `PostgresqlImpl` and "Seeded demo data."; log in again. `python -m pytest tests/test_db_config.py`
+  (3 tests: pool + SSL options accepted by SQLAlchemy/psycopg, password with `@:/#` escaped,
+  SQLite untouched).
+- **Things to watch:**
+  - Docker was **not available** here, so compose was not run. The file was validated against the
+    official Compose Specification JSON schema (`check-jsonschema --builtin-schema
+    vendor.compose-spec`: ok) and its merged services were inspected. The Postgres path was not
+    run against a real Postgres either (no Postgres in this environment); the options were checked
+    by building a SQLAlchemy engine with them.
+  - `env_file` with `required: false` needs Docker Compose 2.24 or newer (Docker Desktop has it).
+  - S3 uploads inside the container need AWS credentials. The container does not see your
+    `~/.aws` folder; uploads from the Docker API will say "upload failed" unless you add a
+    read-only mount of `~/.aws` and `AWS_PROFILE` (or simply run Flask on your Mac for upload
+    work). Everything else works without S3.
+  - Keep the `db` image's major version (17) in step with the RDS engine version chosen in the
+    infra repo.

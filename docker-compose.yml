@@ -1,0 +1,85 @@
+# Local development with Docker (P34). Production does not use this file: the
+# shared EC2 runs the image from the infra repo's compose file, with RDS as
+# the database.
+#
+#   docker compose up --build          API on http://localhost:8000 with SQLite
+#   docker compose up --build api-pg   same API, but on PostgreSQL 17 ("prod-like")
+#   cd react-app && npm run dev        frontend on http://localhost:3000 (proxies /api to :8000)
+#
+# Run ONE of the two API services at a time: both use port 8000. Naming
+# api-pg on the command line turns on the "postgres" profile, which also
+# starts the db service. Never add `-v` to `docker compose down` unless you
+# want to delete the local databases (named volumes below).
+name: postpix
+
+x-api: &api
+  build: .
+  image: postpix-api:dev
+  # Your .env (if it exists) is loaded first; `environment` below wins.
+  env_file:
+    - path: .env
+      required: false
+  # Flask's development server with auto-reload. The code is bind-mounted, so
+  # edits on your Mac apply without rebuilding the image.
+  command: ["flask", "run", "--host", "0.0.0.0", "--port", "8000", "--debug"]
+  ports:
+    - "127.0.0.1:8000:8000"
+
+x-api-env: &api-env
+  FLASK_ENV: development
+  FLASK_DEBUG: "1"
+  PORT: "8000"
+  # entrypoint.sh: apply migrations, then seed if the database is empty.
+  RUN_MIGRATIONS: "1"
+  SEED_ON_START: "1"
+  # The image has no React build; the frontend runs on Vite (:3000).
+  SERVE_FRONTEND: "false"
+
+services:
+  api:
+    <<: *api
+    environment:
+      <<: *api-env
+      DATABASE_URL: sqlite:////data/postpix-dev.db
+    volumes:
+      - ./app:/app/app:ro
+      - ./migrations:/app/migrations
+      - api-data:/data
+
+  api-pg:
+    <<: *api
+    profiles: [postgres]
+    environment:
+      <<: *api-env
+      DATABASE_URL: postgresql://postpix:postpix@db:5432/postpix
+    volumes:
+      - ./app:/app/app:ro
+      - ./migrations:/app/migrations
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    # Keep the major version in step with the RDS instance (infra repo).
+    image: postgres:17-alpine
+    profiles: [postgres]
+    environment:
+      POSTGRES_DB: postpix
+      POSTGRES_USER: postpix
+      # Local-only throwaway password; production uses RDS credentials.
+      POSTGRES_PASSWORD: postpix
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    # 5433 on your Mac (not 5432), so it never clashes with a local Postgres.
+    # Connect a GUI with: postgresql://postpix:postpix@localhost:5433/postpix
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postpix -d postpix"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  api-data:
+  pg-data:

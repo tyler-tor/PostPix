@@ -10,6 +10,8 @@ package never crashes; ProdConfig checks its settings when create_app() runs.
 import os
 import secrets
 
+from sqlalchemy.engine import make_url
+
 
 def _env_bool(name, default=False):
     value = os.environ.get(name)
@@ -29,6 +31,60 @@ def _normalize_db_url(url):
         if url.startswith(prefix):
             return 'postgresql+psycopg://' + url[len(prefix):]
     return url
+
+
+def _env_int(name, default):
+    value = os.environ.get(name)
+    return int(value) if value not in (None, '') else default
+
+
+def _engine_options(url):
+    """SQLAlchemy engine settings for the database in `url`.
+
+    Postgres (production: AWS RDS, shared by several apps) gets a small,
+    self-healing connection pool:
+      * pool_pre_ping: test a pooled connection before using it, so a
+        connection RDS closed (restart, failover, idle timeout) is replaced
+        instead of failing a request.
+      * pool_recycle: replace connections older than DB_POOL_RECYCLE seconds.
+      * pool_size / max_overflow: at most DB_POOL_SIZE + DB_MAX_OVERFLOW
+        connections per gunicorn worker process (default 5 + 2; with 2
+        workers that is at most 14 for this app on the shared instance).
+      * DATABASE_SSLMODE: passed to psycopg as sslmode (use "require" for RDS;
+        "verify-full" also needs the RDS CA bundle, see CHANGES.md P34).
+    SQLite (local development, tests) needs none of this.
+    """
+    if not url or not url.startswith('postgresql'):
+        return {}
+    connect_args = {
+        'connect_timeout': _env_int('DB_CONNECT_TIMEOUT', 10),
+        'application_name': os.environ.get('DB_APPLICATION_NAME', 'postpix'),
+    }
+    sslmode = os.environ.get('DATABASE_SSLMODE')
+    if sslmode:
+        connect_args['sslmode'] = sslmode
+    sslrootcert = os.environ.get('DATABASE_SSLROOTCERT')
+    if sslrootcert:
+        connect_args['sslrootcert'] = sslrootcert
+    return {
+        'pool_pre_ping': True,
+        'pool_recycle': _env_int('DB_POOL_RECYCLE', 300),
+        'pool_size': _env_int('DB_POOL_SIZE', 5),
+        'max_overflow': _env_int('DB_MAX_OVERFLOW', 2),
+        'connect_args': connect_args,
+    }
+
+
+def _with_password(url, password):
+    """Put `password` into a Postgres URL, escaped correctly.
+
+    RDS-generated passwords often contain characters such as @ / : # that
+    break a hand-written URL. With DATABASE_PASSWORD set, DATABASE_URL can be
+    written without a password (postgresql://postpix@host:5432/postpix).
+    """
+    if not url or not password or not url.startswith('postgresql'):
+        return url
+    return make_url(url).set(password=password).render_as_string(hide_password=False)
 
 
 class Config:
@@ -118,4 +174,10 @@ def get_config(name=None):
     if name not in CONFIGS:
         raise RuntimeError(
             f'Unknown config {name!r}; use one of: {", ".join(CONFIGS)}')
-    return CONFIGS[name]()
+    config = CONFIGS[name]()
+    # Done after the class has picked its final database URL (tests and local
+    # development may replace it), so the options match the real database.
+    config.SQLALCHEMY_DATABASE_URI = _with_password(
+        config.SQLALCHEMY_DATABASE_URI, os.environ.get('DATABASE_PASSWORD'))
+    config.SQLALCHEMY_ENGINE_OPTIONS = _engine_options(config.SQLALCHEMY_DATABASE_URI)
+    return config
