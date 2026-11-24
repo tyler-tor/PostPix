@@ -1,0 +1,18 @@
+# Allowlist: ignore everything, then add back only what the image needs.
+# This keeps .env, .git, node_modules, the React app, local databases and
+# virtualenvs out of the build context (and out of the image) by default.
+*
+!app/
+!migrations/
+!wsgi.py
+!gunicorn.conf.py
+!requirements.txt
+!docker/entrypoint.sh
+!docker/healthcheck.py
+
+# Never ship caches or local databases, even inside the folders above.
+**/__pycache__
+**/*.py[cod]
+**/*.db
+**/*.sqlite
+**/*.sqlite3

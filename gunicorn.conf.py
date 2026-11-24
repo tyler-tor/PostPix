@@ -10,8 +10,10 @@ machine.
   WEB_CONCURRENCY   worker processes   (default 2)
   GUNICORN_THREADS  threads per worker (default 4)
   GUNICORN_TIMEOUT  seconds before a stuck worker is restarted (default 30)
-  BIND              address:port, e.g. 0.0.0.0:8000 (default: gunicorn's own,
-                    which honours the PORT variable)
+  PORT              port to listen on, on all interfaces (0.0.0.0:$PORT).
+                    The Docker image sets PORT=8000.
+  BIND              full address:port, wins over PORT (e.g. 127.0.0.1:9000)
+  With neither set: 127.0.0.1:8000 (local only, same port as `flask run`).
 """
 import os
 
@@ -24,6 +26,12 @@ timeout = int(os.environ.get("GUNICORN_TIMEOUT", 30))
 
 if os.environ.get("BIND"):
     bind = os.environ["BIND"]
+elif os.environ.get("PORT"):
+    # Inside a container the server must listen on all interfaces, or the
+    # published port and the reverse proxy cannot reach it.
+    bind = f"0.0.0.0:{os.environ['PORT']}"
+else:
+    bind = "127.0.0.1:8000"
 
 # Load the app once in the master process, then fork the workers: they share
 # the imported code in memory (less RAM) and start faster.
@@ -42,3 +50,8 @@ access_log_format = '%(h)s "%(r)s" %(s)s %(b)s %(L)ss'
 
 # Put worker heartbeat files in memory instead of on disk (recommended in containers).
 worker_tmp_dir = "/dev/shm" if os.path.isdir("/dev/shm") else None
+
+# Gunicorn 25+ opens a "control socket" for its gunicornc tool under
+# $HOME/.gunicorn. The container user has no writable home, which logged a
+# "Permission denied" error on every start, and nothing here uses gunicornc.
+control_socket_disable = True

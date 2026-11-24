@@ -1440,3 +1440,80 @@ the P32 section.
 - **What changed:** every user-facing spelling of the name (page and tab titles, wordmark, logo label, sign-up/login text, empty states, link-preview tags, web manifest, favicon title, README title, walkthrough) is now **PostPix**. The wordmark reads "Post" + "Pix" with "Pix" in the accent colour.
 - **Not changed (on purpose):** lowercase technical identifiers such as the repo name and URL (`github.com/tyler-tor/postpix`). Older entries in this file keep the spelling they were written with.
 - **Files:** `react-app/index.html`, `react-app/public/{favicon.svg,manifest.webmanifest}`, `react-app/src/**` (12 files), `app/__init__.py`, `README.md`, `docs/WALKTHROUGH.md`
+
+---
+
+# Batch 4 items (AWS deployment, app side)
+
+Batch 4 prepares the app for AWS. This repo only gets the **app side**; the Terraform (P35, P36),
+the deploy pipeline (P39) and backups (P40) live in a separate, shared infra repo that also hosts
+Tyler's other two apps. Architecture decisions Tyler approved (they replace the plan where they
+differ):
+
+- **Database:** AWS RDS PostgreSQL, one shared instance with one database `postpix` and one user
+  for this app (no Postgres container in production). The app reads `DATABASE_URL` (psycopg 3),
+  SSL via `DATABASE_SSLMODE=require`. Local development keeps SQLite.
+- **Servers:** one shared EC2 runs the three apps' API containers behind a Caddy reverse proxy.
+  The React app is built to static files on S3 + CloudFront at `https://postpix.tylertorrero.dev`,
+  and CloudFront sends `/api/*` to the EC2, so site and API are the same origin. Flask is
+  **API-only** in production.
+- **Images:** S3 through boto3's default credential chain (EC2 instance role in production,
+  `AWS_PROFILE` locally); no access keys in the app. Public URLs start with `MEDIA_BASE_URL`
+  (e.g. `https://postpix.tylertorrero.dev/media`).
+
+## P33 — New API-only Dockerfile
+- **Problem:** The old `Dockerfile` copied the whole repo (including `.env` if present, `.git`
+  and local databases) into one stage, needed `react-app/build` to exist before building (it
+  baked the frontend into the API image), ran as root, had no health check, and started
+  gunicorn without the project's `gunicorn.conf.py` settings for the container's port.
+- **What changed:**
+  - **New multi-stage `Dockerfile`:** stage 1 (`python:3.12-slim`) installs the pinned
+    `requirements.txt` into `/opt/venv`; stage 2 (`python:3.12-slim`) copies only that venv,
+    `app/`, `migrations/`, `wsgi.py`, `gunicorn.conf.py` and two small scripts. Runs as an
+    unprivileged user (uid/gid 10001); the code is owned by root, so the app cannot modify
+    itself. `PORT=8000`, `FLASK_ENV=production`, no bytecode files, unbuffered logs.
+    `CMD ["gunicorn", "-c", "gunicorn.conf.py", "wsgi:app"]`.
+  - **`HEALTHCHECK`** every 30 s runs `docker/healthcheck.py` (standard-library Python, since
+    the slim image has no curl), which calls `GET /api/health` (no login, no database).
+  - **`docker/entrypoint.sh`:** optional start-up steps, both off by default:
+    `RUN_MIGRATIONS=1` runs `flask db upgrade`, `SEED_ON_START=1` runs `flask seed all` (safe:
+    only seeds an empty database). Then `exec`s the command so gunicorn is PID 1 and gets
+    Docker's stop signal. Production should run migrations as a deploy step after a database
+    snapshot (P0 rule 4), which is why it is off in the image.
+  - **`.dockerignore` is an allowlist** (`*`, then `!app/`, `!migrations/`, ...), so `.env`,
+    `.git`, `node_modules`, `react-app/`, `.venv`, `instance/` and `*.db` can never end up in
+    the build context, even if new files are added later.
+  - **API-only Flask in production:** new setting `SERVE_FRONTEND` (env, default **off in
+    production**, on in development). When off, the React catch-all route is not registered at
+    all, so `/` and `/explore` are 404 and the image does not need `react-app/build`. Local
+    `flask run` after `npm run build` still serves the build as before.
+  - **`gunicorn.conf.py`:** binds `0.0.0.0:$PORT` when `PORT` is set (the container), `BIND`
+    still wins, and with neither it is `127.0.0.1:8000` (local only). Disabled gunicorn 27's new
+    "control socket" (it tried to create `$HOME/.gunicorn`, which the container user cannot
+    write, and logged a `Permission denied` error on every start).
+  - **First pytest files:** `pytest.ini` and `tests/` (`conftest.py` with an app/client fixture
+    on in-memory SQLite, `test_api_only.py`). Run with `python -m pytest` after
+    `pip install -r requirements-dev.txt`. (P42 later grows this into the full suite.)
+- **Files:** `Dockerfile`, new `.dockerignore`, new `docker/entrypoint.sh`, new
+  `docker/healthcheck.py`, `gunicorn.conf.py`, `app/config.py`, `app/__init__.py`, new
+  `pytest.ini`, new `tests/conftest.py`, new `tests/test_api_only.py`.
+- **How to verify:**
+  - With Docker: `docker build -t postpix-api .` then
+    `docker run --rm -p 8000:8000 -e SECRET_KEY=dev -e DATABASE_URL=sqlite:////data/p.db -e RUN_MIGRATIONS=1 -e SEED_ON_START=1 postpix-api`;
+    `curl localhost:8000/api/health` -> `{"status":"ok"}`; `curl -i localhost:8000/` -> 404;
+    after ~30 s `docker ps` shows `(healthy)`; `docker run --rm postpix-api id` -> `uid=10001`;
+    `docker image ls postpix-api` should be roughly 250-300 MB (was about 1 GB).
+  - Without Docker: `python -m pytest tests/test_api_only.py` (3 tests).
+- **Things to watch:**
+  - Docker was **not available** where this was written, so the image was not actually built.
+    What was checked instead: `hadolint` (no findings), `shellcheck` on the entrypoint (clean),
+    and an "image simulation": the exact allowlisted files plus a fresh Python 3.12 venv from
+    `requirements.txt`, started through `entrypoint.sh` with `FLASK_ENV=production`,
+    `RUN_MIGRATIONS=1`, `SEED_ON_START=1` -> 4 migrations, "Seeded demo data.", gunicorn on
+    `0.0.0.0:$PORT` with 2 gthread workers, `healthcheck.py` exit 0 (exit 1 when nothing
+    listens), `/` 404, `/api/posts/` 401. The venv is 110 MB (boto3/botocore is most of it).
+    Please run the Docker commands above once on your Mac.
+  - `docker run` with `FLASK_ENV=production` makes cookies `Secure`; browsers accept those on
+    `http://localhost`, except older Safari. For local work use docker compose (P34), which runs
+    the development config.
+  - The health check uses `PORT`. If you ever set `BIND` to a different port, set `PORT` too.

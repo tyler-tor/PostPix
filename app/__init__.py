@@ -103,6 +103,18 @@ def create_app(config_name=None):
         # Used by Docker / load balancer health checks. No login, no DB.
         return {'status': 'ok'}
 
+    # The React build is only served when SERVE_FRONTEND is on (local
+    # development). In production the API is API-only: CloudFront serves the
+    # site from S3 and sends only /api/* here, so any other path is a 404.
+    if app.config['SERVE_FRONTEND']:
+        _register_frontend_routes(app)
+
+    return app
+
+
+def _register_frontend_routes(app):
+    """Serve react-app/build: real files as-is, every other URL gets index.html."""
+
     @app.route('/', defaults={'path': ''})
     @app.route('/<path:path>')
     def react_root(path):
@@ -132,5 +144,3 @@ def create_app(config_name=None):
         response = send_from_directory(dist, 'index.html', max_age=0)
         response.headers['Cache-Control'] = 'no-cache'
         return response
-
-    return app

@@ -56,6 +56,11 @@ class Config:
         self.SECRET_KEY = os.environ.get('SECRET_KEY')
         url = os.environ.get('DATABASE_URL')
         self.SQLALCHEMY_DATABASE_URI = _normalize_db_url(url) if url else None
+        # Serve the React build (react-app/build) from Flask? On by default for
+        # local development; OFF in production, where the frontend is static
+        # files on S3 + CloudFront and this app is API-only (the Docker image
+        # does not contain the build). SERVE_FRONTEND=true turns it back on.
+        self.SERVE_FRONTEND = _env_bool('SERVE_FRONTEND', not self.IS_PRODUCTION)
 
 
 class DevConfig(Config):
