@@ -86,6 +86,7 @@ Do this only after the `modernize` branch is merged or rebased, because it rewri
 - **P19:** done as one commit (the plan suggested one per slice) and as the minimal safe version: each reducer became an RTK slice with the same state shape and thunks; duplicate slices were not merged and RTK Query was not added (see P19 "Things to watch").
 - **P16 regression, fixed in P19:** the P16 change `require("redux-logger").default` -> `import logger from "redux-logger"` broke the development build (`npm run dev`) for the P16-P18 commits; production builds were unaffected. History was not rewritten; P19 fixes it.
 - **P22:** cursor parameter names differ by list: posts use `before=<created_at>,<id>` as planned (newest first), comments use `after=<created_at>,<id>` (read oldest first) and people lists use `after=<user id>`. `/api/users/<id>` and `/api/auth/` also stopped embedding `Posts` (unbounded).
+- **P26:** only the Flask-side half was done (gunicorn config and cache headers). Postgres memory tuning, compose, and the CloudFront cache policy/compression depend on P33, P34 and P36, which are not part of this batch; the matching headers are already in place for them.
 
 ---
 
@@ -1188,3 +1189,29 @@ look and feel (P27, P32, P28, P29, P30, P31), then the walkthrough update.
   Pillow's WebP encoder must be present in the install (it is in the pinned wheels). A
   future batch migration on `users` on SQLite would drop the `lower(username)` expression
   index from P23 (SQLite cannot reflect it): recreate it in such a migration.
+
+## P26 — Server tuning and caching (the part that exists today)
+- **Problem:** `gunicorn wsgi:app` ran with defaults (one process, one request at a time);
+  every response, including the 224 kB JavaScript file that never changes, was served
+  without cache headers, so browsers either re-downloaded or guessed; and API answers
+  (per-user data) had no "do not cache" header.
+- **What changed:**
+  - New `gunicorn.conf.py` (read automatically when you run `gunicorn wsgi:app` from the
+    project folder): 2 `gthread` workers with 4 threads each (sized for a 1-2 GB server),
+    `preload_app`, worker recycling every ~1000 requests, access and error logs to
+    stdout/stderr, in-memory heartbeat files. `WEB_CONCURRENCY`, `GUNICORN_THREADS`,
+    `GUNICORN_TIMEOUT`, `BIND`, `LOG_LEVEL` override it.
+  - Flask now sends `Cache-Control` for the React build: `assets/*` (hashed file names)
+    `public, max-age=31536000, immutable`; `index.html` and the deep-link fallback
+    `no-cache` (so a deploy is picked up at once); other files (favicon) one hour. Every
+    `/api/*` response gets `Cache-Control: no-store` unless the route set its own.
+- **Files:** `gunicorn.conf.py` (new), `app/__init__.py`.
+- **How to verify:** `gunicorn --check-config wsgi:app` OK; starting it shows "Using worker:
+  gthread" and 2 booted workers; test-client script (8 checks) covers every header above
+  and that a missing asset is still a 404 and an unknown API URL still a JSON 404.
+- **Things to watch:** the Postgres memory settings, the Docker compose file and the
+  CloudFront cache policy / compression named in the plan belong to P33, P34 and P36,
+  which do not exist yet; they are not done here (see "Deviations from plan"). When
+  CloudFront is added, give `/api/*` and `index.html` a "no cache" policy to match these
+  headers. gzip/Brotli is left to CloudFront as the plan says; Flask serves the files
+  uncompressed.

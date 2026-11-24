@@ -7,7 +7,7 @@ Use the app factory: `create_app()` builds a new, fully configured app.
 """
 import os
 
-from flask import Flask, send_from_directory
+from flask import Flask, request, send_from_directory
 from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect, CSRFError, generate_csrf
@@ -93,6 +93,9 @@ def create_app(config_name=None):
             # X-CSRFToken header. The token alone is not a secret: an attacker's
             # site cannot read our cookies, which is what makes this safe.
             httponly=False)
+        # Never let a browser or CDN keep an API answer (it is per-user data).
+        if request.path.startswith('/api/'):
+            response.headers.setdefault('Cache-Control', 'no-store')
         return response
 
     @app.route('/api/health')
@@ -110,13 +113,24 @@ def create_app(config_name=None):
         # Real files from the build (assets/*.js, favicon.ico, ...) are sent as-is.
         # send_from_directory refuses paths that try to leave the folder.
         if path and os.path.isfile(os.path.join(dist, path)):
-            return send_from_directory(dist, path)
+            # assets/ files have a content hash in their name (index-3f9a2c.js),
+            # so a changed file always gets a new URL and can be cached for a
+            # year. Other files (favicon...) are cached for an hour.
+            max_age = 31536000 if path.startswith('assets/') else 3600
+            response = send_from_directory(dist, path, max_age=max_age)
+            if path.startswith('assets/'):
+                response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+            return response
         # A missing *file* (e.g. an old /assets/index-abc123.js) is a real 404;
         # serving index.html there would confuse the browser.
         if '.' in path.rsplit('/', 1)[-1]:
             return {'errors': ['Not found']}, 404
         # Every other URL (/, /explore, /42, /no-such-page) gets index.html and
         # React Router decides what to show, including its own 404 page.
-        return send_from_directory(dist, 'index.html')
+        # no-cache = always check with the server (cheap, answered with 304),
+        # so a new deploy is picked up at once and points at the new hashed files.
+        response = send_from_directory(dist, 'index.html', max_age=0)
+        response.headers['Cache-Control'] = 'no-cache'
+        return response
 
     return app
