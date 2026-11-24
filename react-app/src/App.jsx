@@ -30,7 +30,9 @@ function App() {
 
   return (
     <BrowserRouter>
+      <a className="skip-link" href="#main">Skip to content</a>
       {user && <NavBar />}
+      <main id="main" tabIndex={-1}>
       <Suspense fallback={null}>
         <Routes>
           {/* "/" is the feed when logged in, the login page otherwise. */}
@@ -44,6 +46,7 @@ function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
+      </main>
     </BrowserRouter>
   );
 }

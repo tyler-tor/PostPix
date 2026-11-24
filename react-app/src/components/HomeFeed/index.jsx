@@ -1,28 +1,18 @@
 import React from "react";
-import CircleFaces from "./CircleFaces";
+import Following from "./Following";
 import ActualFeed from "./ActualFeed";
+import Rail from "./Rail";
 import "./HomeFeed.css";
-import SideStuff from "./SideStuff";
 
-const HomeFeed = () => {
-
-  return (
-    <div className="home-feed-page-wrapper">
-      <section className="home-feed-section">
-        <div className="left-side-home-feed-container">
-          <div className="circle-face-array-container">
-            <CircleFaces />
-          </div>
-          <div className="actual-home-feed-container">
-            <ActualFeed />
-          </div>
-        </div>
-        <div>
-          <SideStuff />
-        </div>
-      </section>
+const HomeFeed = () => (
+  <div className="home">
+    <div className="home-main">
+      <h1 className="visually-hidden">Home</h1>
+      <Following />
+      <ActualFeed />
     </div>
-  );
-};
+    <Rail />
+  </div>
+);
 
 export default HomeFeed;

@@ -8,13 +8,13 @@ const NotFound = ({
   title = "Page not found",
   message = "The page you are looking for does not exist or was moved.",
 }) => (
-  <main className="not-found" id="main">
+  <div className="not-found">
     <h1>{title}</h1>
     <p>{message}</p>
     <Link to="/" className="btn btn-primary">
       Go to the home page
     </Link>
-  </main>
+  </div>
 );
 
 export default NotFound;

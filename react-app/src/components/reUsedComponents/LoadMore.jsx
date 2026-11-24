@@ -1,5 +1,6 @@
 import React from "react";
 import useInfiniteScroll from "../../hooks/useInfiniteScroll";
+import "./LoadMore.css";
 
 // Infinite scroll with a keyboard-friendly fallback: the next page loads by
 // itself when this element scrolls near the viewport, and the button does the

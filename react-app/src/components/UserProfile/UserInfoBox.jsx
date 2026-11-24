@@ -6,6 +6,7 @@ import { loadProfile, loadMoreProfilePosts } from "../../store/profile";
 import LoadMore from "../reUsedComponents/LoadMore";
 import { setFollow } from "../../store/users";
 import NotFound from "../NotFound";
+import Avatar from "../ui/Avatar";
 import "./UserProfile.css";
 
 const UserInfoBox = ({ userId }) => {
@@ -32,50 +33,61 @@ const UserInfoBox = ({ userId }) => {
     setFollowErrors((await dispatch(setFollow(userId, follow))) || []);
   };
 
+  const fullName = `${profileUser.firstName || ""} ${profileUser.lastName || ""}`.trim();
+
   return (
     <>
-      <div className="user-profile-header-container">
-        <div className="user-info-box-profile-photo-container">
-          <div id="user-profile-wrapper">
-            <img src={profileUser.profilePicture} alt="profile" />
+      <header className="profile-head">
+        <Avatar src={profileUser.profilePicture} size={9} className="profile-avatar" />
+        <div className="profile-info">
+          <div className="profile-names">
+            <h1>{fullName || profileUser.username}</h1>
+            <p className="profile-handle">@{profileUser.username}</p>
           </div>
-          <div className="user-profile-details-container">
-            <div className="username-and-follow-button-row">
-              <div className="username-for-user-profile">{profileUser.username}</div>
-              {!isMe &&
-                (profileUser.isFollowedByMe ? (
-                  <button onClick={() => handleFollow(false)} className="unfollow-button">
-                    Following
-                  </button>
-                ) : (
-                  <button onClick={() => handleFollow(true)} className="follow-button">
-                    Follow
-                  </button>
-                ))}
-            </div>
-            {followErrors.map((error) => (
-              <div key={error}>{error}</div>
-            ))}
-            <div className="posts-followers-following-row">
-              <div>
-                <strong>{profileUser.postCount}</strong> Posts
-              </div>
-              <div className="posts-followers-following-row-children-except-first">
-                <UserListModal url={`/api/users/${userId}/followers`} dataKey="followers">
-                  <strong>{profileUser.followerCount}</strong> followers
-                </UserListModal>
-              </div>
-              <div className="posts-followers-following-row-children-except-first slight-margin">
-                <UserListModal url={`/api/users/${userId}/following`} dataKey="following">
-                  <strong>{profileUser.followingCount}</strong>{" "}
-                  <span className="following-text-list">following</span>
-                </UserListModal>
-              </div>
-            </div>
-          </div>
+          <ul className="profile-stats">
+            <li>
+              <strong>{profileUser.postCount}</strong> {profileUser.postCount === 1 ? "post" : "posts"}
+            </li>
+            <li>
+              <UserListModal url={`/api/users/${userId}/followers`} dataKey="followers" title="Followers" className="stat-btn">
+                <strong>{profileUser.followerCount}</strong> {profileUser.followerCount === 1 ? "follower" : "followers"}
+              </UserListModal>
+            </li>
+            <li>
+              <UserListModal url={`/api/users/${userId}/following`} dataKey="following" title="Following" className="stat-btn">
+                <strong>{profileUser.followingCount}</strong> following
+              </UserListModal>
+            </li>
+          </ul>
+          {!isMe && (
+            <button
+              type="button"
+              className={`btn ${profileUser.isFollowedByMe ? "btn-secondary" : "btn-primary"}`}
+              aria-pressed={profileUser.isFollowedByMe}
+              onClick={() => handleFollow(!profileUser.isFollowedByMe)}
+            >
+              {profileUser.isFollowedByMe ? "Following" : "Follow"}
+            </button>
+          )}
+          {followErrors.length > 0 && (
+            <ul className="form-errors" role="alert">
+              {followErrors.map((error) => (
+                <li key={error}>{error}</li>
+              ))}
+            </ul>
+          )}
         </div>
-      </div>
-      <PostGrid postIds={profile.postIds} />
+      </header>
+
+      <h2 className="visually-hidden">Posts</h2>
+      {profile.postIds.length === 0 ? (
+        <div className="empty">
+          <p className="empty-title">No posts yet</p>
+          <p>{isMe ? "Share your first photo with the New post button." : `${profileUser.username} has not shared anything yet.`}</p>
+        </div>
+      ) : (
+        <PostGrid postIds={profile.postIds} />
+      )}
       <LoadMore
         hasMore={!!profile.nextCursor}
         loading={profile.loadingMore}

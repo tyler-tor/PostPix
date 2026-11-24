@@ -8,7 +8,7 @@ import "./LoginPage.css";
 // Logged-out home. Two halves on a wide screen: a deep-teal brand panel with a
 // wall of tinted tiles, and the log-in form. On a phone they stack.
 const LoginPage = () => (
-  <main className="auth" id="main">
+  <div className="auth">
     <section className="auth-hero" aria-labelledby="auth-headline">
       <Wordmark size="lg" tone="light" />
       <div className="auth-hero-copy">
@@ -30,7 +30,7 @@ const LoginPage = () => (
         </p>
       </div>
     </section>
-  </main>
+  </div>
 );
 
 export default LoginPage;

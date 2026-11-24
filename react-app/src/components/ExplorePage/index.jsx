@@ -14,16 +14,10 @@ const ExplorePage = () => {
   }, [dispatch]);
 
   return (
-    <div className="explore-papa-div">
-      <div className="explore-page-wrapper">
-        <PostGrid postIds={ids} />
-        <LoadMore
-          hasMore={!!nextCursor}
-          loading={loadingMore}
-          onLoadMore={() => dispatch(loadMoreFeed("explore"))}
-          label="Load more posts"
-        />
-      </div>
+    <div className="page-wide">
+      <h1 className="page-title">Explore</h1>
+      <PostGrid postIds={ids} mosaic />
+      <LoadMore hasMore={!!nextCursor} loading={loadingMore} onLoadMore={() => dispatch(loadMoreFeed("explore"))} label="Load more posts" />
     </div>
   );
 };

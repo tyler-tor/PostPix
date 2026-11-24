@@ -1330,3 +1330,41 @@ the P32 section.
 - **Things to watch:** jsdom has no modal `<dialog>`, so focus trap and Escape are only
   checked as "close event unmounts"; I could not test them in a real browser. NavBar and
   feed still use their old layout until P28 (they only got the new components).
+
+## P28 — Page layouts: nav, home feed, Explore, profile
+- **Problem:** Fixed pixel layouts (a 935 px feed, absolute positions, desktop-only nav
+  with an icon-only dropdown), no mobile layout at all, tiny hit areas, and a profile
+  page that was a small avatar plus three numbers.
+- **What changed:**
+  - **Nav:** a sticky top bar (logo mark + "postpix", pill search, links). On screens under
+    40rem the same single `<nav aria-label="Main">` becomes a tab bar fixed to the bottom
+    (Home, Explore, New post, You) with 44 px targets and safe-area padding; the logo
+    shrinks to the mark so search gets the room. Between 40 and 56rem the labels go
+    icon-only (still read aloud). The account menu is a real disclosure button (Profile,
+    Log out; Escape and outside click close it). Search is a labelled `type=search`
+    field; results are links; a polite live region says how many people were found;
+    Escape clears it.
+  - **Home:** one column 38rem wide, with a "people you follow" row of squircle faces
+    (teal ring) on top. Each post is a card: author, date, the photo in a frame that
+    follows its own shape (clamped between 4:5 and 3:2, square when unknown, so no layout
+    jump), heart, comments button, like count, caption, and "View all N comments", which
+    opens the post dialog. From 64rem a sticky right rail shows you, "People to follow"
+    (with working Follow buttons) and the credits (GitHub/LinkedIn icons, labelled).
+  - **Explore:** page heading and a mosaic grid: every 7th tile is 2x2 and uses the
+    full-size image; other tiles use the 400 px thumbnail. 2 columns at 375 px.
+  - **Profile:** large squircle avatar with a teal ring, full name as the `h1`,
+    `@username`, posts/followers/following (the last two open the people dialogs), and a
+    Follow/Following button with `aria-pressed`. Side by side from 40rem, centered on
+    phones. A profile with no posts shows an empty state.
+  - `<main id="main">` and a "Skip to content" link are in `App.jsx`; Login and NotFound no
+    longer nest their own `main`. `LoadMore` has its own CSS. Removed the old nav, feed,
+    explore and profile CSS, the side-column components and `index.css`.
+- **Files:** `components/NavBar/*`, `HomeFeed/*`, `ExplorePage/*`, `UserProfile/*`,
+  `reUsedComponents/LoadMore.*`, `App.jsx`, `index.jsx`.
+- **How to verify:** `npm run build`; log in as the demo user and resize to 375 px:
+  tab bar at the bottom, 2-column Explore grid, no sideways scroll. At 1200 px the rail
+  appears. jsdom check `p28.mjs` (22 checks) covers landmarks, rail follow, account menu,
+  Explore mosaic, profile, follow toggle, not-found and search keyboard behavior.
+- **Things to watch:** no real browser was available, so spacing, sticky behavior and
+  breakpoints were written from the design and checked only as markup. Please look at it
+  at 375, 768 and 1200 px.

@@ -5,7 +5,6 @@ import "@fontsource-variable/bricolage-grotesque/wght.css";
 import "@fontsource-variable/figtree/wght.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
-import "./index.css";
 import App from "./App";
 import configureStore from "./store";
 

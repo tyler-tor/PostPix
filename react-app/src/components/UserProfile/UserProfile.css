@@ -1,108 +1,18 @@
-.user-profile-papa-div {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 30px 20px 0px ;
-}
+.profile-head { display: grid; justify-items: center; gap: var(--space-5); text-align: center; padding: var(--space-5) 0 var(--space-6); }
+.profile-head .profile-avatar { box-shadow: 0 0 0 4px var(--bg), 0 0 0 6px var(--accent); }
+.profile-info { display: grid; justify-items: center; gap: var(--space-4); min-width: 0; max-width: 100%; }
+.profile-names h1 { font-size: var(--text-xl); overflow-wrap: anywhere; }
+.profile-handle { color: var(--ink-2); }
+.profile-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-5); }
+.stat-btn { min-height: var(--tap); }
+.profile-stats strong { font-family: var(--font-display); font-size: var(--text-md); }
+.profile-info .btn { min-width: 9rem; }
 
-.user-profile-header-container {
-  display: flex;
-  max-width: 935px;
-  margin-bottom: 50px;
-  border-bottom: 1px solid rgb(219, 219, 219);
-}
+.empty { display: grid; justify-items: center; gap: var(--space-2); padding: var(--space-7) var(--space-4); color: var(--ink-2); text-align: center; border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); }
+.empty-title { font-family: var(--font-display); font-size: var(--text-lg); color: var(--ink); }
 
-.user-info-box-profile-photo-container {
-  display: flex;
-  align-items: center;
-}
-
-#user-profile-wrapper {
-  height: 150px;
-  width: 150px;
-  margin: 50px 90px 50px 50px;
-}
-
-#user-profile-wrapper img {
-  object-fit: cover;
-  height: 100%;
-  width: 100%;
-  border-radius: 100%;
-
-}
-
-.user-profile-details-container {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  height: 257px;
-  width: 613px;
-
-}
-
-.username-and-follow-button-row {
-  display: flex;
-  align-items: center;
-  height: 48px;
-  justify-content:space-between;
-}
-
-.username-and-follow-button-row div{
-  font-size: 28px;
-}
-
-.posts-followers-following-row {
-  display: flex;
-  margin-top: 20px;
-  margin-bottom: 24px;
-  height: 24px;
-}
-
-.posts-followers-following-row-children-except-first{
-  margin-left: 14px;
-}
-
-.posts-followers-following-row-children-except-first a {
-  cursor: pointer;
-}
-
-.user-profile-caption {
-  display: flex;
-  flex-direction: column;
-}
-.follow-button{
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 32px;
-  width: 90px;
-  color: white;
-  background-color: var(--pp-accent);
-  border: 1px solid transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  margin: 0px 20% 0px;
-}
-
-.follow-button:hover{
-  background-color: #0074cc;
-}
-
-.unfollow-button{
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 32px;
-  width: 90px;
-  color:  black;
-  background-color: rgb(245, 245, 245);
-  border-radius: 4px;
-  border: none;
-  cursor: pointer;
-  margin: 0px 20% 0px;
-}
-
-.unfollow-button:hover{
-  background-color: rgba(234, 234, 234);
+@media (min-width: 40rem) {
+  .profile-head { grid-template-columns: auto minmax(0, 1fr); justify-items: start; text-align: left; gap: var(--space-7); padding: var(--space-6) 0 var(--space-7); }
+  .profile-info { justify-items: start; }
+  .profile-stats { justify-content: flex-start; }
 }

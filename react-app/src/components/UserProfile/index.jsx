@@ -10,7 +10,7 @@ const UserProfile = () => {
   // Only numeric ids are profiles; anything else is a 404 page.
   if (!/^\d+$/.test(userId)) return <NotFound />;
   return (
-    <div className="user-profile-papa-div">
+    <div className="page-wide">
       <UserInfoBox userId={Number(userId)} />
     </div>
   );
