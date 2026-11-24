@@ -86,7 +86,10 @@ def create_app(config_name=None):
 
     # `flask seed ...` commands
     from .seeds import seed_commands
+    from .seeds.demo import demo_commands
     app.cli.add_command(seed_commands)
+    # `flask demo reset` (nightly demo account clean-up, P41)
+    app.cli.add_command(demo_commands)
 
     register_error_handlers(app)
 

@@ -1710,3 +1710,109 @@ differ):
   - gunicorn's own access log still shows the proxy's IP (it does not use ProxyFix). Caddy's
     access log has the real client IP.
   - gunicorn adds a `Server: gunicorn` header; Caddy can remove it (`header -Server`).
+
+## P41 + Q1 — Keep the demo account clean: `flask demo reset` (nightly)
+- **Problem:** "Demo Login" (`demo@aa.io`) is shared by every visitor. Over time it collects
+  their posts, deleted seed posts, random comments, likes and follows, so the next visitor sees
+  a messy (or empty) demo, and anyone could delete the account through `DELETE /api/users/<id>`,
+  breaking Demo Login for everyone. The only existing fix (`flask seed all --reset`) wipes the
+  whole database and is (rightly) disabled in production.
+- **What changed:**
+  - **New command `flask demo reset`** (`app/seeds/demo.py`) that restores **only the demo
+    user's data** to the seed state:
+    - the demo user row (recreated with the seed password if it is missing; username, names and
+      picture restored),
+    - the demo user's posts: exactly the 5 seed posts. A seed post that still has its seed image
+      and caption is kept as is (same id); edited or deleted ones are recreated; extra posts are
+      deleted (with their comments and likes),
+    - on those posts, exactly the seed comments and likes,
+    - comments and likes the demo user made on other people's posts,
+    - who the demo user follows and who follows the demo user.
+  - **Never touched:** other users, their posts, their comments and likes on anything except the
+    demo user's posts, and follows between other users. The only side effect on others: like
+    counters of the posts whose demo like was added or removed are recounted from the real likes.
+  - **How it knows the seed state without a copy of it:** it runs the normal seed functions in a
+    throwaway in-memory SQLite database and reads the demo user's part by natural keys (emails,
+    captions, comment text), never by ids (which differ between databases). So editing the seed
+    files automatically changes what the reset restores. Seed images follow the current
+    `MEDIA_BASE_URL` (P37).
+  - **Safe for production:** allowed when `FLASK_ENV=production` (unlike `seed all --reset` /
+    `seed undo`), one transaction (all or nothing), the demo row is locked (`SELECT ... FOR
+    UPDATE` on Postgres) so two runs cannot interleave, and it refuses to run on an empty
+    database ("Run `flask seed all` first"), because a lone demo user would make
+    `flask seed all` skip seeding later. **Idempotent:** a second run reports
+    `already matches the seed data` and changes nothing.
+  - `--dry-run` shows what would change and rolls back. Output is one line with a UTC
+    timestamp, made for a log file, e.g.
+    `[2026-11-24T09:17:02Z] demo reset: posts removed 2, posts restored 2, following restored 5, ... (1.0s).`
+  - **The demo account can no longer be deleted:** `DELETE /api/users/<demo id>` answers 403
+    "The demo account cannot be deleted." (P41's optional item; the reset would recreate it
+    anyway, but meanwhile Demo Login would fail). New `User.is_demo` / `DEMO_EMAIL` constant in
+    `app/models/user.py`.
+  - **Demo uploads are tagged** `postpix-demo=true` in S3 (both the image and its thumbnail), so
+    an S3 lifecycle rule can delete them after the reset has removed their posts. Other users'
+    uploads are not tagged.
+- **Nightly schedule on the EC2 (infra repo installs it).** The host clock on EC2 is UTC;
+  09:17 UTC = 2:17 AM in Denver in winter, 3:17 AM in summer. Replace `/opt/apps` and
+  `postpix-api` with the compose folder and service name the infra repo uses.
+  - **crontab** (`crontab -e` as the user that runs Docker; Amazon Linux 2023 needs
+    `sudo dnf install -y cronie && sudo systemctl enable --now crond` first):
+    ```
+    17 9 * * * cd /opt/apps && /usr/bin/docker compose exec -T postpix-api flask demo reset >> /var/log/postpix/demo-reset.log 2>&1
+    ```
+    (`-T` because cron has no terminal; create `/var/log/postpix/` writable by that user.)
+  - **or a systemd timer** (no extra package on Amazon Linux 2023; logs go to
+    `journalctl -u postpix-demo-reset`):
+    ```
+    # /etc/systemd/system/postpix-demo-reset.service
+    [Unit]
+    Description=Reset the PostPix demo account to the seed data
+    Requires=docker.service
+    After=docker.service
+
+    [Service]
+    Type=oneshot
+    WorkingDirectory=/opt/apps
+    ExecStart=/usr/bin/docker compose exec -T postpix-api flask demo reset
+
+    # /etc/systemd/system/postpix-demo-reset.timer
+    [Unit]
+    Description=Nightly PostPix demo reset
+
+    [Timer]
+    OnCalendar=*-*-* 09:17:00 UTC
+    Persistent=true
+
+    [Install]
+    WantedBy=timers.target
+    ```
+    then `sudo systemctl daemon-reload && sudo systemctl enable --now postpix-demo-reset.timer`;
+    `systemctl list-timers postpix*` shows the next run. Test once by hand with
+    `docker compose exec postpix-api flask demo reset --dry-run`.
+  - **S3 lifecycle rule** on the uploads bucket: filter by tag `postpix-demo` = `true`, expire
+    current objects after 2 days. (Needs `s3:PutObjectTagging` in the instance role, see the infra
+    list in the Batch 4 notes.)
+- **Files:** new `app/seeds/demo.py`, `app/__init__.py` (registers `flask demo`),
+  `app/models/user.py`, `app/api/user_routes.py`, `app/api/img_routes.py`, `app/s3_helpers.py`,
+  new `tests/test_demo_reset.py`.
+- **How to verify:** `python -m pytest tests/test_demo_reset.py` (11 tests: fresh seed -> no
+  changes; snapshot matches the seeded demo; after a scripted "visitor session" (deleted, edited
+  and new demo posts, comments, likes, follows) plus unrelated activity by other and brand-new
+  users, the reset restores the demo state exactly while everything not involving the demo user
+  is identical and every like counter is right; second run changes nothing; deleted demo account
+  is recreated with a working password; CLI output, `--dry-run` saves nothing; refuses an empty
+  database (exit 1); runs under the production config; demo account deletion -> 403; demo
+  uploads tagged, others not). By hand: `flask seed all`, log in as Demo, delete a post, like
+  something, follow someone, then `flask demo reset` and reload.
+- **Things to watch:**
+  - **Other people's comments and likes on the demo user's posts are removed** by the reset
+    (those posts are part of the demo's data). Their own posts and everything else stay.
+  - Restored posts are new rows: they get new ids and today's date, so they show up at the top of
+    feeds after a night in which a visitor deleted them, and old links to the deleted post 404.
+  - Matching other people's posts (for the demo's seed comments/likes) uses owner + caption. If a
+    seed user edits a caption, the demo's seed comment on that post is not restored. Every seed
+    user also has the password `password`, so visitors can log in as them too; only the demo
+    account is reset (see open questions).
+  - The demo password is only set when the account is recreated (there is no "change password"
+    feature, so it cannot drift).
+  - The reset runs the seed in memory each time (about 1 s, mostly hashing 15 seed passwords).

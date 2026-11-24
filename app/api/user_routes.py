@@ -95,6 +95,10 @@ def delete_user(id):
     # Only the logged-in user may delete their own account.
     if current_user.id != id:
         return {'errors': ['You can only delete your own account']}, 403
+    # The demo login is shared by every visitor (P41): deleting it would break
+    # "Demo Login" for everyone until the nightly reset.
+    if current_user.is_demo:
+        return {'errors': ['The demo account cannot be deleted.']}, 403
     user = db.session.get(User, id)
     logout_user()
     db.session.delete(user)

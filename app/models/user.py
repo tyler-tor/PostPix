@@ -14,6 +14,11 @@ follows = db.Table('follows',
     db.Index('ix_follows_followed_id', 'followed_id'),
 )
 
+# The shared demo login ("Demo Login" on the login page). Its data is reset to
+# the seed every night by `flask demo reset` (app/seeds/demo.py).
+DEMO_EMAIL = 'demo@aa.io'
+
+
 class User(TimestampMixin, db.Model, UserMixin):
     __tablename__ = 'users'
 
@@ -44,6 +49,10 @@ class User(TimestampMixin, db.Model, UserMixin):
         backref=db.backref('follows', lazy='select'), lazy='select')
 
     post_likes = db.relationship('PostLike', back_populates='users', cascade='all, delete-orphan')
+
+    @property
+    def is_demo(self):
+        return self.email == DEMO_EMAIL
 
     @property
     def password(self):

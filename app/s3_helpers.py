@@ -108,7 +108,7 @@ def get_unique_filename(ext, suffix=''):
     return f'{UPLOAD_PREFIX}{uuid.uuid4().hex}{suffix}.{ext}'
 
 
-def upload_file_to_s3(file, key, content_type):
+def upload_file_to_s3(file, key, content_type, tagging=None):
     """Upload to S3 without an ACL.
 
     New buckets have ACLs disabled ("Bucket owner enforced"), so passing
@@ -118,13 +118,12 @@ def upload_file_to_s3(file, key, content_type):
     bucket = current_app.config['S3_BUCKET']
     if not bucket:
         return {'errors': 'S3 is not configured (S3_BUCKET is empty)'}
+    extra = {'ContentType': content_type, 'CacheControl': CACHE_CONTROL}
+    if tagging:
+        # e.g. "postpix-demo=true": a bucket lifecycle rule can expire these.
+        extra['Tagging'] = tagging
     try:
-        s3_client().upload_fileobj(
-            file,
-            bucket,
-            key,
-            ExtraArgs={'ContentType': content_type, 'CacheControl': CACHE_CONTROL}
-        )
+        s3_client().upload_fileobj(file, bucket, key, ExtraArgs=extra)
     except Exception:
         # Log the real reason server-side; don't leak AWS details to clients.
         current_app.logger.exception('S3 upload failed for %s', key)
@@ -156,10 +155,17 @@ def make_variants(file, kind):
                 'thumb': _encode_webp(img, THUMB_SIZE, 78)}
 
 
-def process_and_upload_image(file, kind='post'):
+# Object tag on images uploaded by the shared demo account. Its posts are
+# deleted by the nightly demo reset, so the infra repo's lifecycle rule on this
+# tag removes the files a day or two later (P41).
+DEMO_UPLOAD_TAG = 'postpix-demo=true'
+
+
+def process_and_upload_image(file, kind='post', demo=False):
     """Validate an uploaded image, resize it and send it to S3.
 
     kind: 'post' (main + thumbnail) or 'avatar' (one small image).
+    demo: True for the demo account; its files get the DEMO_UPLOAD_TAG tag.
     Returns {'url', 'thumbUrl', 'width', 'height'} on success (thumbUrl is
     None for avatars), {'errors': ..., 'status': code} on failure.
     """
@@ -174,14 +180,16 @@ def process_and_upload_image(file, kind='post'):
         return {'errors': str(e) if isinstance(e, InvalidImage) else 'file is not a valid image', 'status': 400}
 
     name = get_unique_filename('webp')
+    tagging = DEMO_UPLOAD_TAG if demo else None
     main, width, height = variants['main']
-    result = upload_file_to_s3(main, name, 'image/webp')
+    result = upload_file_to_s3(main, name, 'image/webp', tagging)
     if 'url' not in result:
         result['status'] = 502
         return result
     out = {'url': result['url'], 'thumbUrl': None, 'width': width, 'height': height}
     if 'thumb' in variants:
-        thumb = upload_file_to_s3(variants['thumb'][0], name.replace('.webp', '_thumb.webp'), 'image/webp')
+        thumb = upload_file_to_s3(variants['thumb'][0], name.replace('.webp', '_thumb.webp'),
+                                  'image/webp', tagging)
         if 'url' not in thumb:
             thumb['status'] = 502
             return thumb
