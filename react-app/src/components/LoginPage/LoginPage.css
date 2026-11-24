@@ -1,159 +1,91 @@
-.papa-div {
-  display: flex;
-  height: 100vh;
-  background-color: rgb(250, 250, 250);
-  justify-content: center;
-  align-items: center;
+/* Logged-out screen: brand panel + form. Mobile first, two columns from 56rem. */
+.auth {
+  display: grid;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
-.login-page-right-side-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  height: 548.84px;
-  width: 350px;
-  margin-top: 12px;
-}
-
-.login-form-and-other-stuff-container {
+.auth-hero {
   display: flex;
   flex-direction: column;
-  width: 100%;
-  align-items: center;
-  border: 1px solid rgb(219, 219, 219);
-  border-top: 4px solid var(--pp-accent);
-  border-radius: 12px;
-  background-color: white;
-  margin-bottom: 10px;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--gutter) var(--space-6);
+  background:
+    radial-gradient(60rem 30rem at 90% -10%, rgb(43 179 163 / 0.35), transparent 60%),
+    var(--brand-deep);
+  color: #fff;
+  overflow: hidden;
 }
 
-.logo-holder {
+.auth-hero-copy { display: grid; gap: var(--space-3); max-width: 30rem; }
+.auth-hero h1 { font-size: var(--text-2xl); font-weight: 800; }
+.auth-hero p { font-size: var(--text-md); color: #d4efea; max-width: 26rem; }
+
+/* On phones the tile wall is just a decorative strip. */
+.auth-hero .mosaic { display: none; }
+
+.auth-panel {
+  display: grid;
+  place-items: start center;
+  padding: var(--space-6) var(--gutter) var(--space-7);
+}
+
+.auth-card { width: 100%; max-width: 24rem; display: grid; gap: var(--space-4); }
+.auth-card h2 { font-size: var(--text-xl); }
+.auth-form { display: grid; gap: var(--space-4); }
+
+.auth-divider {
   display: flex;
-  justify-content: center;
-  margin: 36px 0px;
-}
-
-.form-container {
-  display: flex;
-  flex-direction: column;
   align-items: center;
+  gap: var(--space-3);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+.auth-divider::before,
+.auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+.auth-hint { font-size: var(--text-sm); color: var(--ink-2); margin-top: calc(var(--space-2) * -1); }
+.auth-switch { font-size: var(--text-base); }
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-strong);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.link-button:hover { color: var(--accent); }
+
+@media (min-width: 56rem) {
+  .auth { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+  .auth-hero {
+    justify-content: space-between;
+    padding: var(--space-6) var(--space-7);
+    min-height: 100vh;
+  }
+  .auth-hero .mosaic { display: grid; }
+  .auth-panel { place-items: center; padding: var(--space-6); }
 }
 
-.form-children {
-  margin-bottom: 6px
-}
-
-.form-input-text-boxes {
-  height: 36px;
-  width: 266px;
-  border: 1px solid rgb(219, 219, 219);
-  background-color: rgb(250, 250, 250);
-  border-radius: 3px;
-}
-
-.form-default-submit-button,
-.upload-img-btn {
-  height: 32px;
-  width: 266px;
-  background-color: var(--pp-accent);
-  padding: 5px 9px;
-  margin: 10px 0px;
-  color: white;
-  border: 1px solid transparent;
-  border-radius: 4px;
-}
-
-.form-default-submit-button:hover {
-  cursor: pointer;
-}
-
-.or-styling {
-  margin: 15px 0px 0px;
-}
-
-.demo {
-  background-color: var(--pp-accent-dark);
-  margin: 40px;
-}
-
-.demo:hover {
-  cursor: pointer;
-}
-
-.have-an-account-sign-up-box-container {
-  display: flex;
-  height: 48px;
-  justify-content: center;
-  align-items: center;
-  background-color: white;
-  padding: 10px 0px;
-  width: 100%;
-  border: 1px solid rgb(219, 219, 219);
-}
-
-.sign-up-modal-text {
-  color: var(--pp-accent);
-  text-decoration: double;
-}
-
-.sign-up-logo{
-  margin-bottom: 20px;
-}
-
-.sign-up-container {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  width: 450px;
-  align-items: center;
-  border: 1px solid rgb(219, 219, 219);
-  background-color: white;
-  padding: 20px 0px;
-}
-
-.sign-up-form-header-text {
-  font-size: 22px;
+/* ---- Sign-up form (shown in a dialog) --------------------------------- */
+.signup { display: grid; gap: var(--space-4); width: min(26rem, 88vw); padding: var(--space-5); background: var(--surface); border-radius: var(--radius-lg); }
+.signup h2 { font-size: var(--text-lg); }
+.signup-grid { display: grid; gap: var(--space-4); }
+.signup-pic { display: flex; align-items: center; gap: var(--space-4); }
+.signup-pic img { --avatar-size: 4rem; }
+.signup-pic input[type="file"] { max-width: 100%; font-size: var(--text-sm); }
+.signup-pic input[type="file"]::file-selector-button {
+  margin-right: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
   font-weight: 600;
-  line-height: 25px;
-  margin: 0 40px;
-  text-align: center;
-  color: rgb(142, 142, 142);
-  padding: 0px 60px;
-
-}
-
-.sign-up-form-policy-text {
-  font-size: 16px;
-  font-weight: 200;
-  line-height: 20px;
-  text-align: center;
-  color: rgb(142, 142, 142);
-  padding: 0px 20%;
-  margin: 20px 0px;
-
-}
-
-.sign-up-modal-text:hover {
   cursor: pointer;
 }
-
-.signup-errors {
-  color: red;
-}
-
-.signup-propic-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.supp-input-btn-wrapper {
-  display: flex;
-  flex-direction: column;
-}
-
-.supp-prev-img {
-  height: 90px;
-  width: 90px;
-  padding: 3px;
+@media (min-width: 30rem) {
+  .signup-grid.two { grid-template-columns: 1fr 1fr; }
 }

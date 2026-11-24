@@ -1,0 +1,28 @@
+.mosaic {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: clamp(3.5rem, 9vh, 6.5rem);
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 34rem;
+}
+
+.mosaic-tile {
+  --tile-bg: #0f766e;
+  --tile-fg: #7fe3d6;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--tile-bg);
+  color: var(--tile-fg);
+  grid-row: span 1;
+}
+.mosaic-tile.tall { grid-row: span 2; }
+.mosaic-tile svg { width: 100%; height: 100%; }
+
+/* A small stagger so the wall feels like a hand-pinned set of prints. */
+.mosaic-tile:nth-child(even) { transform: translateY(0.75rem); }
+
+.tone-teal { --tile-bg: #0f766e; --tile-fg: #a7f0e6; }
+.tone-deep { --tile-bg: #0a4d48; --tile-fg: #5fd6c6; }
+.tone-sand { --tile-bg: #f0dfb8; --tile-fg: #c9792b; }
+.tone-mint { --tile-bg: #bfe9e1; --tile-fg: #0b5e58; }

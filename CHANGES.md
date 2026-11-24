@@ -1244,3 +1244,60 @@ the P32 section.
   width (no pinch-zoom to read).
 - **Things to watch:** there is no `og:image` yet: link previews need an absolute image URL, which
   depends on the final domain (P36). The `upgrade-insecure-requests` policy from Batch 1 stays.
+
+## P32 — Visual refresh: design tokens, type, logo, login (and a design system for the rest)
+- **Problem:** colours, sizes and fonts were hard-coded in 20 CSS files (often the same rule
+  pasted three times), `* { font-family }` overrode everything, nothing was fluid, there was no
+  dark mode, and the login page had the typical "centred card" look that gets flagged as a
+  look-alike. No real browser is available here, so the look below is described rather than
+  screenshotted (see the note at the end).
+- **What changed:**
+  - **Design tokens** in `src/styles/tokens.css` (CSS variables): colour, type scale, spacing
+    (4 px grid), radius, shadow, layout widths, motion, z-index. Dark colours switch on with the
+    operating system setting (`prefers-color-scheme`). Old `--pp-*` names are aliases so
+    unrewritten CSS keeps working until P28/P29.
+  - **Base styles** in `src/styles/base.css`: a small reset, typography, one visible keyboard
+    focus ring (3 px, `--focus`, 2 px offset), a "skip to content" style, reduced-motion support,
+    and shared building blocks: `.btn` (`primary`, `secondary`, `ghost`, `danger`, `sm`, `block`),
+    `.icon-btn`, `.field` + `.input`, `.form-errors`, `.avatar`, `.spinner`.
+  - **Fonts:** Bricolage Grotesque (headings, logo) and Figtree (everything else), both open
+    fonts (SIL OFL 1.1) installed as npm packages and served from our own server (no Google
+    request). Only the Latin files (about 64 kB) are downloaded for English text; the extended
+    sets load only if a name needs them. System fonts are the fallback.
+  - **Logo:** the original teal "P" mark and lowercase "postpix" wordmark, refined: the mark is
+    now an SVG (a geometric white P in a rounded square, the same shapes as the favicon) and the
+    wordmark is set in Bricolage Grotesque 800 with a tight tracking and a teal "pix". A light
+    version is used on the dark login panel.
+  - **Login screen (new layout):** on a wide screen it is split in two: on the left a deep-teal
+    panel (`#08403B` with a soft glow) holds the logo, the headline "Share photos with friends."
+    in 56 px Bricolage Grotesque and a wall of 8 tinted "photo" tiles (teal, deep teal, sand,
+    mint; each a tiny drawn landscape: sun, hills, moon, stripes, dots; staggered by a few pixels
+    like pinned prints); on the right the form sits on the page colour, left-aligned, with "Log
+    in", labelled Email and Password fields, a primary "Log in" button, an "or" divider, a
+    secondary "Demo Login" button with the line "Look around as a ready-made user. No sign-up
+    needed.", then "New to Postpix? Sign up" and the demo disclaimer. On a phone the panel
+    becomes a compact header above the form (no tile wall). It shares nothing with another
+    network's login page: no phone mock-up, no centred boxed card, no gradient, no app-store
+    badges, its own mark and fonts.
+  - **Sign-up form:** labelled fields (first name, last name, username, email, password with a
+    hint, repeat password), an optional profile photo picker with a preview, errors in a red
+    alert box, autocomplete attributes, a primary "Sign up" button. Still shown in the old dialog
+    until P29.
+  - **Not-found page** restyled with the tokens and a real button.
+- **Colours (light / dark):** page `#F3F6F5` / `#0B1413`; surface `#FFFFFF` / `#121E1D`; text
+  `#10201E` / `#E8F1EF`; secondary text `#4B5F5C` / `#9DB3AF`; hairlines `#D5DEDC` / `#263C39`;
+  input borders `#778B88` / `#5F7A76`; accent teal `#0F766E` / `#3CC4B4` (hover `#0B5E58` /
+  `#6AD9CB`); soft teal tint `#D9F0EC` / `#123A36`; like heart `#C92A3C` / `#FF6B7A`; error
+  `#B42318` / `#FF8A80`; focus ring `#0B5E58` / `#6AD9CB`; photo backdrop `#0D1A19`.
+- **Files:** new `react-app/src/styles/{tokens,base}.css`, `components/Brand/{LogoMark,Wordmark,Mosaic}.jsx`
+  and CSS, `components/LoginPage/*`, `NotFound/*`, `src/index.css` (trimmed to one copy of the
+  rules the edit dialogs still use), `src/index.jsx`, `package.json` / lock (two font packages).
+- **How to verify:** `python3 contrast.py` (a small script that reads `tokens.css`) checks 24
+  colour pairs in both light and dark against WCAG AA (4.5:1 text, 3:1 for borders, focus ring
+  and icons): **0 failures** (the first run caught the input border at 2.6:1; it was darkened to
+  `#778B88`, now 3.3:1+). Build OK and `npm audit` 0. jsdom click-through (login via Demo Login,
+  feed, explore, post modal like and comment, profile, logout) with 0 console errors.
+- **Things to watch:** nobody has looked at the result in a real browser yet: please open the
+  login page, resize it to phone width and toggle your system dark mode, and tell me what looks
+  off. Refreshed README screenshots are not included for the same reason. The rest of the app
+  still uses its old layout until P28 (it already picks up the new fonts and colours).

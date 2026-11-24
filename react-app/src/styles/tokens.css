@@ -1,0 +1,127 @@
+/* Postpix design tokens.
+   Everything visual (colour, type, space, shape, motion) is a variable here, so a
+   restyle is a change in this file. Components use these names, never raw values.
+   Dark colours switch on automatically with the operating system setting. */
+
+:root {
+  /* ---- Colour: light ---------------------------------------------------- */
+  --bg: #f3f6f5;            /* page: a cool, slightly green grey */
+  --surface: #ffffff;       /* cards, bars, dialogs */
+  --surface-2: #e9efee;     /* hover, skeletons, inputs at rest */
+  --ink: #10201e;           /* body text: a deep green-black, not pure black */
+  --ink-2: #4b5f5c;         /* secondary text */
+  --line: #d5dedc;          /* hairlines and borders */
+  --line-strong: #778b88;   /* input borders (3:1 against surface and page) */
+
+  --accent: #0f766e;        /* Postpix teal: buttons, links, active states */
+  --accent-strong: #0b5e58; /* hover/pressed */
+  --accent-soft: #d9f0ec;   /* tinted backgrounds */
+  --on-accent: #ffffff;     /* text on --accent */
+
+  --like: #c92a3c;          /* the heart */
+  --danger: #b42318;
+  --danger-soft: #fde8e6;
+  --focus: #0b5e58;         /* keyboard focus ring */
+  --scrim: rgb(10 24 22 / 0.62);
+  --photo-bg: #0d1a19;      /* behind photos so any shape of photo looks intentional */
+
+  /* The deep teal panel on the login screen. */
+  --brand-deep: #08403b;
+  --brand-mid: #0f766e;
+  --brand-glow: #2bb3a3;
+
+  /* ---- Type ------------------------------------------------------------- */
+  --font-display: "Bricolage Grotesque Variable", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Figtree Variable", "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  /* One scale, ratio about 1.2, fluid at the top end. */
+  --text-xs: 0.75rem;     /* 12: timestamps, counts */
+  --text-sm: 0.875rem;    /* 14: secondary UI */
+  --text-base: 1rem;      /* 16: body */
+  --text-md: 1.125rem;    /* 18: lead text */
+  --text-lg: 1.375rem;    /* 22: section titles */
+  --text-xl: clamp(1.625rem, 1.3rem + 1.2vw, 2.125rem);  /* 26-34: page titles */
+  --text-2xl: clamp(2.25rem, 1.6rem + 2.6vw, 3.5rem);    /* 36-56: login headline */
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-body: 1.55;
+  --tracking-display: -0.025em;
+
+  /* ---- Space (4 px grid) ------------------------------------------------ */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4.5rem;
+  --gutter: clamp(0.75rem, 0.4rem + 1.6vw, 1.5rem);
+
+  /* ---- Shape ------------------------------------------------------------ */
+  --radius-sm: 8px;       /* inputs, small buttons */
+  --radius-md: 12px;      /* tiles, menus */
+  --radius-lg: 20px;      /* photos in the feed, dialogs */
+  --radius-pill: 999px;
+  --radius-avatar: 30%;   /* avatars are rounded squares, like the logo mark */
+
+  --shadow-1: 0 1px 2px rgb(16 32 30 / 0.06), 0 1px 1px rgb(16 32 30 / 0.04);
+  --shadow-2: 0 12px 32px rgb(16 32 30 / 0.16), 0 2px 6px rgb(16 32 30 / 0.08);
+
+  /* ---- Layout ----------------------------------------------------------- */
+  --content-max: 68rem;   /* ~1090 px */
+  --feed-width: 38rem;    /* ~608 px: wide enough for the photo to be the point */
+  --nav-h: 3.75rem;
+  --tabbar-h: 3.5rem;
+  --tap: 2.75rem;         /* minimum touch target, 44 px */
+
+  /* ---- Motion ----------------------------------------------------------- */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --fast: 120ms;
+  --base: 200ms;
+
+  /* ---- Layers ----------------------------------------------------------- */
+  --z-nav: 20;
+  --z-dropdown: 30;
+  --z-toast: 60;
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1413;
+    --surface: #121e1d;
+    --surface-2: #1a2a28;
+    --ink: #e8f1ef;
+    --ink-2: #9db3af;
+    --line: #263c39;
+    --line-strong: #5f7a76;
+
+    --accent: #3cc4b4;
+    --accent-strong: #6ad9cb;
+    --accent-soft: #123a36;
+    --on-accent: #04211e;
+
+    --like: #ff6b7a;
+    --danger: #ff8a80;
+    --danger-soft: #3a1a17;
+    --focus: #6ad9cb;
+    --scrim: rgb(2 8 8 / 0.74);
+    --photo-bg: #060c0c;
+
+    --brand-deep: #072f2b;
+
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-2: 0 12px 32px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.4);
+  }
+}
+
+/* Old names still used by component CSS that has not been rewritten yet. */
+:root {
+  --pp-accent: var(--accent);
+  --pp-accent-dark: var(--accent-strong);
+  --pp-ink: var(--ink);
+  --pp-muted: var(--ink-2);
+  --pp-font: var(--font-body);
+}

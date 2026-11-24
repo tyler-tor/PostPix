@@ -1,17 +1,12 @@
 .not-found {
-  max-width: 480px;
-  margin: 120px auto;
-  padding: 0 16px;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  max-width: 30rem;
+  margin: var(--space-8) auto;
+  padding: 0 var(--gutter);
   text-align: center;
 }
-
-.not-found h1 {
-  font-size: 24px;
-  margin-bottom: 8px;
-}
-
-.not-found a {
-  display: inline-block;
-  margin-top: 16px;
-  font-weight: 600;
-}
+.not-found h1 { font-size: var(--text-xl); }
+.not-found p { color: var(--ink-2); }
+.not-found .btn { margin-top: var(--space-3); }

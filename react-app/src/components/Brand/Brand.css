@@ -1,48 +1,24 @@
-/* Postpix brand: a teal accent and a plain geometric wordmark. */
-.pp-wordmark {
+.wordmark {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-family: var(--pp-font);
+  gap: 0.45em;
+  font-family: var(--font-display);
   font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--pp-ink);
-  text-transform: lowercase;
+  letter-spacing: -0.04em;
+  line-height: 1;
   user-select: none;
 }
+.wordmark-sm { font-size: 1.5rem; }
+.wordmark-lg { font-size: 2.5rem; }
+.wordmark-mark { width: 1.25em; height: 1.25em; flex: none; }
+.wordmark-dark { color: var(--ink); }
+.wordmark-dark .wordmark-accent { color: var(--accent); }
+.wordmark-light { color: #fff; --logo-bg: #fff; --logo-fg: var(--brand-deep); }
+.wordmark-light .wordmark-accent { color: #7fe3d6; }
 
-.pp-wordmark-accent {
-  color: var(--pp-accent);
-}
-
-.pp-wordmark-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background-color: var(--pp-accent);
-  color: white;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.pp-wordmark-sm { font-size: 24px; }
-.pp-wordmark-sm .pp-wordmark-mark { width: 30px; height: 30px; font-size: 18px; }
-
-.pp-wordmark-lg { font-size: 40px; }
-.pp-wordmark-lg .pp-wordmark-mark { width: 48px; height: 48px; font-size: 30px; border-radius: 12px; }
-
+.demo-note,
 .pp-demo-note {
-  font-size: 12px;
-  line-height: 16px;
-  color: var(--pp-muted);
-  text-align: center;
-  padding: 0 24px 16px;
-}
-
-.pp-tagline {
-  font-size: 15px;
-  color: var(--pp-muted);
-  margin: -20px 0 20px;
-  text-align: center;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-2);
 }
