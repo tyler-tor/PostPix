@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify
 from flask_login import login_required, current_user, logout_user
 from flask import request
-from sqlalchemy import select, delete, insert
+from sqlalchemy import select, delete, insert, func
 from sqlalchemy.exc import IntegrityError
 from app.api.serializers import page_of_posts
 from app.api.pagination import decode_time_cursor, bad_cursor, get_limit
@@ -42,6 +42,26 @@ def users():
     rows = _stats_dicts(User.stats_select(current_user.id)
                         .order_by(User.id).limit(_limit(50)))
     return {'users': rows}
+
+
+@user_routes.route('/search')
+@login_required
+def search_users():
+    """Find people by username prefix: /api/users/search?q=ab&limit=10.
+
+    Case-insensitive. Written as a range on lower(username)
+    (lower(username) >= 'ab' AND lower(username) < 'ac') so it uses the
+    ix_users_username_lower index and needs no LIKE wildcard escaping.
+    """
+    q = request.args.get('q', '').strip().lower()[:40]
+    if not q:
+        return {'users': []}
+    name = func.lower(User.username)
+    statement = select(User).where(name >= q)
+    if ord(q[-1]) < 0x10FFFF:  # the largest code point has no "next" character
+        statement = statement.where(name < q[:-1] + chr(ord(q[-1]) + 1))
+    users = db.session.scalars(statement.order_by(name).limit(_limit(10, 25))).all()
+    return {'users': [user_summary(u) for u in users]}
 
 
 @user_routes.route('/<int(max=2147483647):id>')

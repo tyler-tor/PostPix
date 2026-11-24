@@ -1117,3 +1117,30 @@ look and feel (P27, P32, P28, P29, P30, P31), then the walkthrough update.
   the cursor helper formats the comparison value the same way; Postgres compares real
   timestamps. Plan said `?before=` for every list; comments and people lists use `after`
   because they read oldest-first / by id (see "Deviations from plan").
+
+## P23 — Server-side user search
+- **Problem:** The nav bar downloaded a list of users (all of them, with all their
+  relations before P20) every time it mounted, just to filter by username in the browser.
+- **What changed:**
+  - New `GET /api/users/search?q=ab&limit=10`: case-insensitive prefix match on username,
+    up to 25 results (default 10), summary shape (no email). It is a range comparison
+    (`lower(username) >= 'ab' AND lower(username) < 'ac'`) so it uses the new index and
+    treats `%` and `_` as ordinary characters (no `LIKE` wildcards to escape).
+  - New migration `0003_user_search` creates the index `ix_users_username_lower` on
+    `lower(username)` (downgrades cleanly); the model declares it too.
+  - Search bar: nothing is downloaded on page load; typing waits 250 ms after the last
+    key, sends one request, ignores answers that are out of date, and shows the matches
+    or "No users with that username found!". `GET /api/users/` (capped list) is no longer
+    used by the app and `hooks/useFetch.js` was deleted.
+- **Files:** `app/api/user_routes.py`, `app/models/user.py`,
+  `migrations/versions/0003_user_search_index.py`, `react-app/src/components/NavBar/SearchBar.jsx`.
+- **How to verify:** test-client script (15 checks): prefix and case-insensitive matches equal
+  the expected names, `%`/`_`/empty/very long/edge-character queries are safe, limit clamps,
+  login required, `EXPLAIN QUERY PLAN` shows the index. `flask db upgrade`, `check`,
+  `downgrade`, `upgrade`, `downgrade base` all work. jsdom: no search or user list request on
+  load; typing "m", "ma", "mar" quickly makes exactly 1 request; results render; a no-match
+  term shows the message; clicking a result opens that profile and clears the box.
+- **Things to watch:** only the username prefix is searched (as before), not first/last
+  name. `flask db check` prints a warning that SQLite cannot reflect expression indexes;
+  it reports no changes. Search results have no keyboard (arrow key) navigation or
+  combobox roles yet; P30 adds those.

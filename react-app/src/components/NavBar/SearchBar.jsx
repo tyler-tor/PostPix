@@ -1,19 +1,39 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { NavLink } from "react-router";
-import useFetch from "../../hooks/useFetch";
+import { api } from "../../utils/api";
 import "./SearchBar.css";
 
-// Type a username, get a dropdown of matching people.
-// (P23 moves the matching to the server; for now the list is fetched once.)
+const DEBOUNCE_MS = 250;
+
+// Type a username, get a dropdown of matching people. The server does the
+// matching (GET /api/users/search?q=), 250 ms after you stop typing, so
+// nothing is downloaded until you search and only 10 people are ever returned.
 const SearchBar = () => {
   const [searchInput, setSearchInput] = useState("");
-  const { data } = useFetch("/api/users/?limit=100");
-  const users = data?.users ?? [];
+  const [results, setResults] = useState({ term: "", users: [], status: "idle" });
+  const term = searchInput.trim();
 
-  const term = searchInput.trim().toLowerCase();
-  const matches = term
-    ? users.filter((user) => user.username.toLowerCase().startsWith(term)).slice(0, 10)
-    : [];
+  useEffect(() => {
+    if (!term) return undefined;
+    let current = true; // ignore the answer if the user has typed more since
+    const timer = setTimeout(async () => {
+      setResults((prev) => ({ ...prev, status: "loading" }));
+      const res = await api(`/api/users/search?q=${encodeURIComponent(term)}&limit=10`);
+      if (!current) return;
+      setResults(
+        res.ok
+          ? { term, users: res.data.users, status: "ready" }
+          : { term, users: [], status: "error" }
+      );
+    }, DEBOUNCE_MS);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [term]);
+
+  // Only show results for what is in the box right now.
+  const showing = term && results.term === term;
 
   return (
     <div className="search-container">
@@ -27,18 +47,22 @@ const SearchBar = () => {
       </div>
 
       <div className="dropdown">
-        {matches.map((item) => (
-          <NavLink
-            key={item.id}
-            to={`/${item.id}`}
-            onClick={() => setSearchInput("")}
-            className="dropdown-row"
-          >
-            <img src={item.profilePicture} className="search-pic" alt="" />
-            <div className="search-dropdown-name">{item.username}</div>
-          </NavLink>
-        ))}
-        {term && matches.length === 0 && <div>No users with that username found!</div>}
+        {showing &&
+          results.users.map((item) => (
+            <NavLink
+              key={item.id}
+              to={`/${item.id}`}
+              onClick={() => setSearchInput("")}
+              className="dropdown-row"
+            >
+              <img src={item.profilePicture} className="search-pic" alt="" />
+              <div className="search-dropdown-name">{item.username}</div>
+            </NavLink>
+          ))}
+        {showing && results.status === "ready" && results.users.length === 0 && (
+          <div>No users with that username found!</div>
+        )}
+        {showing && results.status === "error" && <div>Search failed. Try again.</div>}
       </div>
     </div>
   );

@@ -26,6 +26,9 @@ class User(TimestampMixin, db.Model, UserMixin):
     first_name = db.Column(db.String(255), nullable=False)
     last_name = db.Column(db.String(255), nullable=False)
 
+    # User search: ?q=ab matches lower(username) in a range (see /api/users/search).
+    __table_args__ = (db.Index('ix_users_username_lower', func.lower(username)),)
+
     posts = db.relationship('Post', back_populates='users', cascade='all, delete-orphan')
     comments = db.relationship('Comment', back_populates='users', cascade='all, delete-orphan')
 
