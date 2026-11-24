@@ -44,7 +44,7 @@ def users():
     return {'users': rows}
 
 
-@user_routes.route('/<int:id>')
+@user_routes.route('/<int(max=2147483647):id>')
 @login_required
 def user(id):
     row = db.session.execute(
@@ -60,7 +60,7 @@ def user(id):
     return user
 
 
-@user_routes.route('/<int:id>', methods=['DELETE'])
+@user_routes.route('/<int(max=2147483647):id>', methods=['DELETE'])
 @login_required
 def delete_user(id):
     # Only the logged-in user may delete their own account.
@@ -72,7 +72,7 @@ def delete_user(id):
     db.session.commit()
     return {'message': 'Success'}
 
-@user_routes.route('/<int:id>/followers', methods=['GET'])
+@user_routes.route('/<int(max=2147483647):id>/followers', methods=['GET'])
 @login_required
 def get_followers(id):
     """People who follow user <id> (summary shape: id, username, picture...)."""
@@ -83,7 +83,7 @@ def get_followers(id):
     return {'followers': [user_summary(u) for u in users]}
 
 
-@user_routes.route('/<int:id>/following', methods=['GET'])
+@user_routes.route('/<int(max=2147483647):id>/following', methods=['GET'])
 @login_required
 def get_following(id):
     """People user <id> follows."""
@@ -94,7 +94,7 @@ def get_following(id):
     return {'following': [user_summary(u) for u in users]}
 
 
-@user_routes.route('/<int:id>/notfollowing', methods=['GET'])
+@user_routes.route('/<int(max=2147483647):id>/notfollowing', methods=['GET'])
 @login_required
 def get_not_following(id):
     """Suggestions: users that <id> does not follow yet (and not <id> itself).
@@ -107,7 +107,7 @@ def get_not_following(id):
     return {'users': _stats_dicts(stmt)}
 
 
-@user_routes.route('/<int:id>/follow', methods=['POST'])
+@user_routes.route('/<int(max=2147483647):id>/follow', methods=['POST'])
 @login_required
 def follow_user(id):
     f_user = db.session.get(User, id)
@@ -124,7 +124,7 @@ def follow_user(id):
     return {'currentUser': current_user.to_dict(), 'followingUser': f_user.to_dict()}
 
 
-@user_routes.route('/<int:id>/follow', methods=['DELETE'])
+@user_routes.route('/<int(max=2147483647):id>/follow', methods=['DELETE'])
 @login_required
 def unfollow_user(id):
     f_user = db.session.get(User, id)
@@ -137,7 +137,7 @@ def unfollow_user(id):
         return {'errors': ['You are not following this user']}, 409
     return {'currentUser': current_user.to_dict(), 'followingUser': f_user.to_dict()}
 
-@user_routes.route('/<int:id>/likes', methods=['GET'])
+@user_routes.route('/<int(max=2147483647):id>/likes', methods=['GET'])
 @login_required
 def get_all_liked_posts(id):
     db.get_or_404(User, id, description='User not found')

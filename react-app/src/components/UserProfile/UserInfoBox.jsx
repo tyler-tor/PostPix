@@ -4,6 +4,7 @@ import PostGrid from "../reUsedComponents/PostGrid";
 import UserListModal from "../reUsedComponents/UserListModal";
 import { loadProfile } from "../../store/profile";
 import { setFollow } from "../../store/users";
+import NotFound from "../NotFound";
 import "./UserProfile.css";
 
 const UserInfoBox = ({ userId }) => {
@@ -17,8 +18,11 @@ const UserInfoBox = ({ userId }) => {
     dispatch(loadProfile(userId));
   }, [dispatch, userId]);
 
-  // Not loaded yet (or this profile failed): nothing to show. P31/Z3 add the
-  // loading, error and not-found states.
+  // A user id that does not exist gets a proper not-found page instead of an
+  // empty shell. (Loading and error states come with P31.)
+  if (profile.userId === userId && profile.status === "notFound") {
+    return <NotFound title="Profile not found" message="There is no Postpix user with that id. They may have deleted their account." />;
+  }
   if (profile.userId !== userId || profile.status !== "ready" || !profileUser) return null;
 
   const isMe = currUser.id === userId;

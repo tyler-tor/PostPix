@@ -34,7 +34,7 @@ def posts():
     ).all()
     return {'Posts': serialize_posts(posts, current_user.id)}
 
-@post_routes.route('/<int:id>', methods=['GET'])
+@post_routes.route('/<int(max=2147483647):id>', methods=['GET'])
 @login_required
 def get_post_by_id(id):
     post = db.get_or_404(Post, id, description='Post not found')
@@ -59,7 +59,7 @@ def create_post():
     return {'errors': validation_errors_to_error_messages(form.errors)}, 400
 
 
-@post_routes.route('/<int:id>', methods=['PUT'])
+@post_routes.route('/<int(max=2147483647):id>', methods=['PUT'])
 @login_required
 def update_post(id):
     form = UpdatePost()
@@ -76,7 +76,7 @@ def update_post(id):
     return {'errors': validation_errors_to_error_messages(form.errors)}, 400
 
 
-@post_routes.route('/<int:id>', methods=['DELETE'])
+@post_routes.route('/<int(max=2147483647):id>', methods=['DELETE'])
 @login_required
 def delete_post(id):
     post = db.session.get(Post, id)
@@ -92,7 +92,7 @@ def delete_post(id):
 # Add post like endpoints here!
 
 
-@post_routes.route('/<int:id>/likes/users', methods=['GET'])
+@post_routes.route('/<int(max=2147483647):id>/likes/users', methods=['GET'])
 @login_required
 def get_user_liked(id):
     '''
@@ -105,7 +105,7 @@ def get_user_liked(id):
     return {'user': [{'id': u.id, 'username': u.username,
                       'profilePicture': u.profile_picture} for u in users]}
 
-@post_routes.route('/<int:id>/likes', methods=['POST'])
+@post_routes.route('/<int(max=2147483647):id>/likes', methods=['POST'])
 @login_required
 def like_post(id):
     '''
@@ -132,7 +132,7 @@ def like_post(id):
     return {'likes': post.likes, 'postId': post.id, 'likedByMe': True}
 
 
-@post_routes.route('/<int:id>/likes', methods=['DELETE'])
+@post_routes.route('/<int(max=2147483647):id>/likes', methods=['DELETE'])
 @login_required
 def unlike_post(id):
     '''
@@ -153,7 +153,7 @@ def unlike_post(id):
     return {'postId': post.id, 'likes': post.likes, 'likedByMe': False}
 
 
-@post_routes.route('/<int:id>/comments')
+@post_routes.route('/<int(max=2147483647):id>/comments')
 @login_required
 def comments_on_post(id):
     post = db.session.get(Post, id)
@@ -176,7 +176,7 @@ def comments_on_post(id):
     return {'errors': ['Post not found']}, 404
 
 
-@post_routes.route('/<int:id>/comments', methods=['POST'])
+@post_routes.route('/<int(max=2147483647):id>/comments', methods=['POST'])
 @login_required
 def create_comment_post(id):
     post = db.get_or_404(Post, id, description='Post not found')

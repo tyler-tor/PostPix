@@ -18,7 +18,7 @@ def validation_errors_to_error_messages(validation_errors):
     return errorMessages
 
 
-@comment_routes.route('/<int:id>', methods=['PUT'])
+@comment_routes.route('/<int(max=2147483647):id>', methods=['PUT'])
 @login_required
 def update_comment(id):
     form = UpdateComment()
@@ -42,7 +42,7 @@ def update_comment(id):
     return {'errors': ['This comment does not belong to you!']}, 403
 
 
-@comment_routes.route('/<int:id>', methods=['DELETE'])
+@comment_routes.route('/<int(max=2147483647):id>', methods=['DELETE'])
 @login_required
 def delete_comment(id):
     comment = db.session.get(Comment, id)

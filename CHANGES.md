@@ -1052,3 +1052,24 @@ look and feel (P27, P32, P28, P29, P30, P31), then the walkthrough update.
   click-through on a development-mode bundle (RTK's checks on): 0 console errors.
 - **Things to watch:** install the "Redux DevTools" browser extension to inspect actions;
   nothing is logged to the console any more.
+
+## Z3 — Not-found state for profiles that do not exist (add-on)
+- **Problem:** Opening `/99999` (a numeric id with no user) showed the nav bar and a blank
+  page: the profile component simply rendered nothing when the API said 404. Very large
+  ids (`/99999999999999999999`) made the backend raise an error instead of answering 404.
+- **What changed:**
+  - The profile slice already tracks `status` (`ready`, `notFound`, ...); the profile page
+    now shows the shared `NotFound` component with the text "Profile not found" and a link
+    home when the status is `notFound`. `NotFound` takes an optional title and message
+    (the unknown-URL page keeps "Page not found").
+  - Backend: all `<int:id>` URL parts are now `<int(max=2147483647):id>`, so an id larger
+    than a database integer is a normal JSON 404 instead of an `OverflowError` (500 in
+    production).
+- **Files:** `react-app/src/components/UserProfile/UserInfoBox.jsx`,
+  `react-app/src/components/NotFound/index.jsx`, `app/api/{user,post,comment}_routes.py`.
+- **How to verify:** test-client: `/api/users/99999`, `/api/users/99999999999999999999999`
+  and `/api/users/0` all return a JSON 404. jsdom (development-mode bundle, logged in):
+  `/99999` and `/99999999999999999999` show "Profile not found"; `/abc` shows "Page not
+  found"; `/1` still shows the real profile; 0 console errors. Earlier scripts still pass.
+- **Things to watch:** a profile that is still loading renders nothing until P31 adds a
+  skeleton. The not-found page is plain until the P32 restyle.
